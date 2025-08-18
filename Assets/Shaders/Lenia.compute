@@ -1,0 +1,57 @@
+#pragma kernel Update
+
+Texture2D<float>           _StateIn;
+RWTexture2D<float>         _StateOut;
+Texture2D<float>           _KernelTex;     // (2R+1)x(2R+1) normalized weights
+Texture2D<float>           _EnvTex;        // environment mask (0..1), optional
+
+int   _Width, _Height;
+int   _KernelRadius;        // R
+float _Mu;                  // growth center
+float _Sigma;               // growth width
+float _Beta;                // growth gain
+float _Dt;                  // time step per sub-iteration
+float _EnvScale;            // 0..1 modulation strength
+
+[numthreads(8,8,1)]
+void Update(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Width || id.y >= _Height) return;
+
+    float sum = 0.0;
+    const int R = _KernelRadius;
+
+    // Toroidal convolution
+    for (int dy = -R; dy <= R; ++dy)
+    {
+        int ky = dy + R;
+        int y = (int)id.y + dy;
+        y = (y % _Height + _Height) % _Height;
+
+        for (int dx = -R; dx <= R; ++dx)
+        {
+            int kx = dx + R;
+            int x = (int)id.x + dx;
+            x = (x % _Width + _Width) % _Width;
+
+            float w = _KernelTex.Load(int3(kx, ky, 0)).r;
+            float a = _StateIn.Load(int3(x, y, 0)).r;
+            sum += w * a;
+        }
+    }
+
+    // Growth: g = 2*exp(-((s-mu)^2)/(2*sigma^2)) - 1
+    float s = sum;
+    float g = 2.0 * exp(-((s - _Mu)*(s - _Mu)) / (2.0 * _Sigma * _Sigma)) - 1.0;
+
+    float a0 = _StateIn.Load(int3(id.xy, 0)).r;
+    float env = 1.0;
+    if (_EnvScale > 0.0)
+    {
+        env = _EnvTex.Load(int3(id.xy, 0)).r;
+        env = lerp(1.0, env, _EnvScale);
+    }
+
+    float a1 = saturate(a0 + _Dt * _Beta * g * env);
+    _StateOut[id.xy] = a1;
+}

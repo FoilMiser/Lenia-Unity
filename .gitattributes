@@ -1,0 +1,4 @@
+
+# Normalize line endings for shaders/compute
+*.shader  text eol=lf
+*.compute text eol=lf
