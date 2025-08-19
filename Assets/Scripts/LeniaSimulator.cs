@@ -14,8 +14,14 @@ public class LeniaSimulator : MonoBehaviour
 
     [Header("Kernel Profile")]
     public bool useRingKernel = true;
-    [Range(0f,1f)] public float ringCenter = 0.50f;   // where the ring sits (0..1 of R)
-    [Range(0.02f,0.50f)] public float ringWidth = 0.15f; // ring thickness
+    [Range(0f,1f)] public float ringCenter = 0.50f;
+    [Range(0.02f,0.50f)] public float ringWidth = 0.15f;
+
+    [Header("Kernel Mixture")]
+    public bool useMultiRing = false;
+    [Range(0f,1f)] public float ring2Center = 0.34f;
+    [Range(0.02f,0.50f)] public float ring2Width = 0.08f;
+    [Range(0f,2f)] public float ring2Weight = 0.60f; // weight of ring2; ring1 has implicit weight 1.0
 
     [Header("Environment")]
     [Range(0f,1f)] public float envScale = 0.0f;
@@ -119,7 +125,7 @@ public class LeniaSimulator : MonoBehaviour
         _envTex = AllocRT();
         ClearRT(_stateA, 0f);
         ClearRT(_stateB, 0f);
-        ClearRT(_envTex, 1f); // neutral env
+        ClearRT(_envTex, 1f);
         ReSeedNoise();
     }
 
@@ -137,6 +143,11 @@ public class LeniaSimulator : MonoBehaviour
         Graphics.Blit(tmp, rt); Destroy(tmp);
     }
 
+    float Ring(float r, float c, float w){
+        w = Mathf.Max(0.01f, w);
+        return Mathf.Exp(-0.5f * (r - c)*(r - c) / (w*w));
+    }
+
     void BuildKernel()
     {
         int R = Mathf.Clamp(kernelRadius,1,64);
@@ -148,26 +159,26 @@ public class LeniaSimulator : MonoBehaviour
 
         float sum=0f; var data = new Color[size*size];
         for (int y=0;y<size;y++)
+        for (int x=0;x<size;x++)
         {
-            for (int x=0;x<size;x++)
+            float dx = x - R, dy = y - R;
+            float r = Mathf.Sqrt(dx*dx + dy*dy) / R; // 0..1
+            float w;
+            if (useRingKernel)
             {
-                float dx = x - R; float dy = y - R;
-                float r = Mathf.Sqrt(dx*dx + dy*dy) / R; // 0..1
-                float w;
-                if (useRingKernel)
-                {
-                    float c = Mathf.Clamp01(ringCenter);
-                    float s = Mathf.Max(0.01f, ringWidth);
-                    w = Mathf.Exp(-0.5f * (r - c)*(r - c) / (s*s));
-                }
-                else
-                {
-                    w = Mathf.Exp(-4f * r*r); // center bump
-                }
-                if (r>1f) w = 0f;
-                data[y*size + x] = new Color(w,0,0,0);
-                sum += w;
+                // base ring
+                w = Ring(r, Mathf.Clamp01(ringCenter), ringWidth);
+                if (useMultiRing)
+                    w = w + ring2Weight * Ring(r, Mathf.Clamp01(ring2Center), ring2Width);
             }
+            else
+            {
+                // center bump (classic)
+                w = Mathf.Exp(-4f * r*r);
+            }
+            if (r>1f) w = 0f;
+            data[y*size + x] = new Color(w,0,0,0);
+            sum += w;
         }
         float inv = sum>1e-6f ? 1f/sum : 1f;
         for (int i=0;i<data.Length;i++){ data[i].r *= inv; }
