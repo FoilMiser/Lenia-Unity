@@ -14,7 +14,13 @@ public class LeniaPainter : MonoBehaviour
     Material brushMat;
 
     void Start(){
-        if(!sim) sim = FindObjectOfType<LeniaSimulator>();
+        if(!sim){
+            #if UNITY_2023_1_OR_NEWER
+            sim = Object.FindFirstObjectByType<LeniaSimulator>();
+            #else
+            sim = Object.FindObjectOfType<LeniaSimulator>();
+            #endif
+        }
         var sh = Shader.Find("Hidden/BrushBlit");
         if(sh) brushMat = new Material(sh);
     }
@@ -34,48 +40,47 @@ public class LeniaPainter : MonoBehaviour
     }
 
     Vector2 GetMouseXY01(){
-    #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+        #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
         var m = Mouse.current; if (m==null) return Vector2.zero;
         return new Vector2(m.position.x.ReadValue()/Screen.width, m.position.y.ReadValue()/Screen.height);
-    #else
+        #else
         return new Vector2(Input.mousePosition.x/Screen.width, Input.mousePosition.y/Screen.height);
-    #endif
+        #endif
     }
-
     bool ShiftDown(){
-    #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+        #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
         var k = Keyboard.current; return k!=null && (k.leftShiftKey.isPressed || k.rightShiftKey.isPressed);
-    #else
+        #else
         return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-    #endif
+        #endif
     }
     bool LMB(){
-    #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+        #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
         var m = Mouse.current; return m!=null && m.leftButton.isPressed;
-    #else
+        #else
         return Input.GetMouseButton(0);
-    #endif
+        #endif
     }
     bool RMB(){
-    #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+        #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
         var m = Mouse.current; return m!=null && m.rightButton.isPressed;
-    #else
+        #else
         return Input.GetMouseButton(1);
-    #endif
+        #endif
     }
     bool MinusPressed(){
-    #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+        #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
         var k = Keyboard.current; return k!=null && (k.minusKey.wasPressedThisFrame || (k.numpadMinusKey!=null && k.numpadMinusKey.wasPressedThisFrame));
-    #else
+        #else
         return Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.Underscore);
-    #endif
+        #endif
     }
     bool PlusPressed(){
-    #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+        #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
         var k = Keyboard.current; return k!=null && (k.equalsKey.wasPressedThisFrame || (k.numpadPlusKey!=null && k.numpadPlusKey.wasPressedThisFrame));
-    #else
+        #else
         return Input.GetKeyDown(KeyCode.Equals) || Input.GetKeyDown(KeyCode.Plus);
-    #endif
+        #endif
     }
 
     void PaintAtUV(Vector2 uv, float targetValue)
