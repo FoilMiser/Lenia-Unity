@@ -1,0 +1,28 @@
+﻿# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild*/
+[Ll]ogs/
+UserSettings/
+MemoryCaptures/
+Sysroot/
+Packages/com.unity.collab-proxy/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vs/
+*.csproj
+*.sln
+*.user
+*.pidb
+*.svd
+*.suo
+*.tmp
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
