@@ -1,4 +1,4 @@
-﻿Shader "Hidden/BrushBlit"
+Shader "Hidden/BrushBlit"
 {
     SubShader
     {
