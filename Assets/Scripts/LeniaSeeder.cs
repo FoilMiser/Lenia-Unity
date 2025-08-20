@@ -26,7 +26,7 @@ public class LeniaSeeder : MonoBehaviour
 
     [Header("Clusters & Movers")]
     [Min(0)] public int count = 120;
-    [Min(0f)] public float radius = 12f;           // ~ KernelRadius/2 for Radius=24
+    [Min(0f)] public float radius = 12f;           // ≈ KernelRadius/2 for Radius=24
     [Range(0f, 1f)] public float amplitude = 0.7f;
 
     [Header("Orbium")]
@@ -49,7 +49,7 @@ public class LeniaSeeder : MonoBehaviour
         if (!randomizeSeed) Random.InitState(seed);
     }
 
-    // Reflection helper so we never hard-crash if a method signature differs.
+    // Reflection helper to avoid hard crashes when signatures differ
     bool Call(string name, params object[] args){
         if (sim == null) return false;
         var t = sim.GetType();
@@ -73,7 +73,6 @@ public class LeniaSeeder : MonoBehaviour
         }
 
         switch (mode){
-            case SeedMode.Noise: // typo guard (if someone serialized older name)
             case SeedMode.Noise:
                 if (!Call("SeedNoise", noiseDensity, noiseAmplitude))
                     if (!Call("SeedNoise", noiseDensity))
@@ -104,7 +103,7 @@ public class LeniaSeeder : MonoBehaviour
         }
     }
 
-    // ---------------- Compatibility overloads for older code ----------------
+    // -------- Compatibility overloads for older code --------
     public void SeedFewBlobs(){
         mode = SeedMode.Movers;
         if (count <= 0) count = 120;
@@ -128,10 +127,5 @@ public class LeniaSeeder : MonoBehaviour
         clearBeforeSeed = clear;
         mode = SeedMode.Movers; SeedOnce();
     }
-    // ------------------------------------------------------------------------
+    // --------------------------------------------------------
 }
-
-
-
-
-
