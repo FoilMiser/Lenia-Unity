@@ -128,4 +128,9 @@ public class LeniaSeeder : MonoBehaviour
         mode = SeedMode.Movers; SeedOnce();
     }
     // --------------------------------------------------------
+    // Legacy 4-arg (float) overload for compatibility
+    public void SeedFewBlobs(int c, float r, float a, float extra){
+        count=c; radius=r; amplitude=a;
+        mode=SeedMode.Movers; SeedOnce();
+    }
 }
