@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using System.Linq;
 using System.Reflection;
+using System.Collections;
 
 public enum SeedMode { None, Noise, Clusters, Movers, Orbium }
 
@@ -37,12 +38,20 @@ public class LeniaSeeder : MonoBehaviour
 #if UNITY_2023_1_OR_NEWER
         if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
 #else
-        if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
+        if (!sim) sim = FindObjectOfType<LeniaSimulator>();
 #endif
     }
 
     void Start(){
-        if (autoSeedOnPlay) SeedOnce();
+        if (autoSeedOnPlay) StartCoroutine(DelayedSeed());
+    }
+
+    IEnumerator DelayedSeed(){
+        // wait one frame so LeniaSimulator can build textures/kernels
+        yield return null;
+        // ensure params are applied before seeding if the simulator exposes it
+        Call("ApplyParams");
+        SeedOnce();
     }
 
     void InitRandom(){
@@ -70,6 +79,9 @@ public class LeniaSeeder : MonoBehaviour
         }
 
         InitRandom();
+
+        // make sure params are applied even when seeding on hotkeys
+        Call("ApplyParams");
 
         if (clearBeforeSeed){
             if (!Call("Clear")) Call("ClearState");
@@ -112,7 +124,7 @@ public class LeniaSeeder : MonoBehaviour
 #if UNITY_2023_1_OR_NEWER
             sim = FindFirstObjectByType<LeniaSimulator>();
 #else
-            sim = FindFirstObjectByType<LeniaSimulator>();
+            sim = FindObjectOfType<LeniaSimulator>();
 #endif
         }
         if (!Call("Clear")) Call("ClearState");
@@ -125,6 +137,9 @@ public class LeniaSeeder : MonoBehaviour
                     Call("SeedNoise", 0.02f);
         }
     }
+    // Numeric overloads some presets use
+    public void Clear(float x){ Clear(x > 0f); }
+    public void Clear(int   x){ Clear(x != 0); }
 
     // Legacy: seed a few blobs (movers) with defaults from inspector
     public void SeedFewBlobs(){
@@ -134,33 +149,26 @@ public class LeniaSeeder : MonoBehaviour
         if (amplitude <= 0f) amplitude = 0.7f;
         SeedOnce();
     }
-    // Legacy 3-arg (count, radius, amplitude)
     public void SeedFewBlobs(int c, float r, float a){
         count = c; radius = r; amplitude = a;
         mode = SeedMode.Movers; SeedOnce();
     }
-    // Legacy 4-arg variant: (count, radius, amplitude, int seed)
     public void SeedFewBlobs(int c, float r, float a, int s){
         count = c; radius = r; amplitude = a;
         randomizeSeed = false; seed = s;
         mode = SeedMode.Movers; SeedOnce();
     }
-    // Legacy 4-arg variant: (count, radius, amplitude, bool clearBefore)
     public void SeedFewBlobs(int c, float r, float a, bool clear){
         count = c; radius = r; amplitude = a;
         clearBeforeSeed = clear;
         mode = SeedMode.Movers; SeedOnce();
     }
-    // Legacy 4-arg variant: (count, radius, amplitude, float extra)
     public void SeedFewBlobs(int c, float r, float a, float extra){
         count = c; radius = r; amplitude = a;
         mode = SeedMode.Movers; SeedOnce();
     }
-    // -----------------------------------------------------------------
-    // Compatibility: some legacy presets pass numeric flags to Clear(...)
-    public void Clear(float x){ Clear(x > 0f); }
-    public void Clear(int   x){ Clear(x != 0); }
-    // --- Convenience & compatibility wrappers so presets compile ---
+
+    // Convenience wrappers so old presets compile
     public void SeedNoise(){ mode = SeedMode.Noise; SeedOnce(); }
     public void SeedNoise(float density){ noiseDensity = density; mode = SeedMode.Noise; SeedOnce(); }
     public void SeedNoise(float density, float amp){ noiseDensity = density; noiseAmplitude = amp; mode = SeedMode.Noise; SeedOnce(); }
@@ -177,4 +185,3 @@ public class LeniaSeeder : MonoBehaviour
     public void SeedOrbium(float r){ orbiumRadius = r; mode = SeedMode.Orbium; SeedOnce(); }
     public void SeedOrbium(float r, float a){ orbiumRadius = r; orbiumAmplitude = a; mode = SeedMode.Orbium; SeedOnce(); }
 }
-
