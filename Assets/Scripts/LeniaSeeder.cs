@@ -25,8 +25,8 @@ public class LeniaSeeder : MonoBehaviour
     [Range(0f, 1f)] public float noiseAmplitude = 0.8f;
 
     [Header("Clusters & Movers")]
-    [Min(0)] public int count = 120;
-    [Min(0f)] public float radius = 12f;           // ≈ KernelRadius/2 for Radius=24
+    [Min(0)] public int   count     = 120;
+    [Min(0f)] public float radius   = 12f;      // ≈ KernelRadius/2 when KernelRadius = 24
     [Range(0f, 1f)] public float amplitude = 0.7f;
 
     [Header("Orbium")]
@@ -49,11 +49,11 @@ public class LeniaSeeder : MonoBehaviour
         if (!randomizeSeed) Random.InitState(seed);
     }
 
-    // Reflection helper to avoid hard crashes when signatures differ
+    // Reflection helper so we never hard-crash if signatures differ
     bool Call(string name, params object[] args){
         if (sim == null) return false;
         var t = sim.GetType();
-        var methods = t.GetMethods(BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic)
+        var methods = t.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                        .Where(m => m.Name == name);
         foreach (var m in methods){
             var ps = m.GetParameters();
@@ -64,7 +64,10 @@ public class LeniaSeeder : MonoBehaviour
     }
 
     public void SeedOnce(){
-        if (!sim) { Debug.LogWarning("LeniaSeeder: no simulator"); return; }
+        if (!sim){
+            Debug.LogWarning("LeniaSeeder: no simulator in scene.");
+            return;
+        }
 
         InitRandom();
 
@@ -103,7 +106,27 @@ public class LeniaSeeder : MonoBehaviour
         }
     }
 
-    // -------- Compatibility overloads for older code --------
+    // ---- Compatibility shims for older code (LeniaPresets, etc.) ----
+    public void Clear(){
+        if (!sim){
+#if UNITY_2023_1_OR_NEWER
+            sim = FindFirstObjectByType<LeniaSimulator>();
+#else
+            sim = FindObjectOfType<LeniaSimulator>();
+#endif
+        }
+        if (!Call("Clear")) Call("ClearState");
+    }
+    public void Clear(bool reseedNoise){
+        Clear();
+        if (reseedNoise){
+            if (!Call("SeedNoise", noiseDensity, noiseAmplitude))
+                if (!Call("SeedNoise", noiseDensity))
+                    Call("SeedNoise", 0.02f);
+        }
+    }
+
+    // Legacy: seed a few blobs (movers) with defaults from inspector
     public void SeedFewBlobs(){
         mode = SeedMode.Movers;
         if (count <= 0) count = 120;
@@ -111,46 +134,27 @@ public class LeniaSeeder : MonoBehaviour
         if (amplitude <= 0f) amplitude = 0.7f;
         SeedOnce();
     }
+    // Legacy 3-arg (count, radius, amplitude)
     public void SeedFewBlobs(int c, float r, float a){
         count = c; radius = r; amplitude = a;
         mode = SeedMode.Movers; SeedOnce();
     }
-    // (count, radius, amplitude, seed)
+    // Legacy 4-arg variant: (count, radius, amplitude, int seed)
     public void SeedFewBlobs(int c, float r, float a, int s){
         count = c; radius = r; amplitude = a;
         randomizeSeed = false; seed = s;
         mode = SeedMode.Movers; SeedOnce();
     }
-    // (count, radius, amplitude, clearBeforeSeed)
+    // Legacy 4-arg variant: (count, radius, amplitude, bool clearBefore)
     public void SeedFewBlobs(int c, float r, float a, bool clear){
         count = c; radius = r; amplitude = a;
         clearBeforeSeed = clear;
         mode = SeedMode.Movers; SeedOnce();
     }
-    // --------------------------------------------------------
-    // Legacy 4-arg (float) overload for compatibility
+    // Legacy 4-arg variant: (count, radius, amplitude, float extra)
     public void SeedFewBlobs(int c, float r, float a, float extra){
-        count=c; radius=r; amplitude=a;
-        mode=SeedMode.Movers; SeedOnce();
+        count = c; radius = r; amplitude = a;
+        mode = SeedMode.Movers; SeedOnce();
     }
-    // Compatibility: expose Clear() so presets can call seeder.Clear()
-    public void Clear(){
-        if (!sim) {
-#if UNITY_2023_1_OR_NEWER
-            sim = FindFirstObjectByType<LeniaSimulator>();
-#else
-            sim = FindObjectOfType<LeniaSimulator>();
-#endif
-        }
-        if (!Call(""Clear"")) Call(""ClearState"");
-    }
-    // Optional overload: Clear and optionally reseed noise
-    public void Clear(bool reseedNoise){
-        Clear();
-        if (reseedNoise){
-            if (!Call(""SeedNoise"", noiseDensity, noiseAmplitude))
-                if (!Call(""SeedNoise"", noiseDensity))
-                    Call(""SeedNoise"", 0.02f);
-        }
-    }
+    // -----------------------------------------------------------------
 }
