@@ -94,4 +94,14 @@ public class LeniaSeeder : MonoBehaviour
                 break;
         }
     }
+    // Compatibility shim for older code calling seeder.SeedFewBlobs()
+    public void SeedFewBlobs(){
+        if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
+        // sensible defaults if not set in Inspector
+        if (count <= 0) count = 120;
+        if (radius <= 0f) radius = 12f;   // ≈ KernelRadius/2 for Radius=24
+        if (amplitude <= 0f) amplitude = 0.7f;
+        mode = SeedMode.Movers;
+        SeedOnce();
+    }
 }
