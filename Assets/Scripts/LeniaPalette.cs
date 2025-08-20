@@ -6,7 +6,7 @@ public class LeniaPalette : MonoBehaviour
     Texture2D ramp; Material mat;
 
     void Start(){
-        if(!display) display = FindObjectOfType<LeniaDisplay>();
+        if(!display) display = FindFirstObjectByType<LeniaDisplay>();
         if(display) mat = display.GetComponent<UnityEngine.UI.RawImage>().material;
         Rebuild();
     }
@@ -40,3 +40,4 @@ public class LeniaPalette : MonoBehaviour
         exposure = GUI.HorizontalSlider(new Rect(8,232,120,18), exposure, 0.5f, 2.5f); mat?.SetFloat("_Exposure", exposure);
     }
 }
+
