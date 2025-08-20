@@ -40,3 +40,4 @@ public class LeniaWorldDisplay : MonoBehaviour
         t.wrapMode = TextureWrapMode.Clamp; t.Apply(false,false); return t;
     }
 }
+
