@@ -6,3 +6,4 @@ public class LeniaDisplayBasic : MonoBehaviour {
   void Awake(){ ri = GetComponent<RawImage>(); }
   void Update(){ if (sim && sim.CurrentState) ri.texture = sim.CurrentState; }
 }
+

@@ -33,3 +33,4 @@ public class LeniaHotkeys : MonoBehaviour
 #endif
     }
 }
+

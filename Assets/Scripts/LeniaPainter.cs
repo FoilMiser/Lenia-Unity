@@ -18,7 +18,7 @@ public class LeniaPainter : MonoBehaviour
             #if UNITY_2023_1_OR_NEWER
             sim = Object.FindFirstObjectByType<LeniaSimulator>();
             #else
-            sim = Object.FindObjectOfType<LeniaSimulator>();
+            sim = Object.FindFirstObjectByType<LeniaSimulator>();
             #endif
         }
         var sh = Shader.Find("Hidden/BrushBlit");
@@ -100,3 +100,4 @@ public class LeniaPainter : MonoBehaviour
         RenderTexture.ReleaseTemporary(tmp);
     }
 }
+

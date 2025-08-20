@@ -11,14 +11,14 @@ public class LeniaPresets : MonoBehaviour
 #if UNITY_2023_1_OR_NEWER
             sim = Object.FindFirstObjectByType<LeniaSimulator>();
 #else
-            sim = Object.FindObjectOfType<LeniaSimulator>();
+            sim = Object.FindFirstObjectByType<LeniaSimulator>();
 #endif
         }
         if(!seeder){
 #if UNITY_2023_1_OR_NEWER
             seeder = Object.FindFirstObjectByType<LeniaSeeder>();
 #else
-            seeder = Object.FindObjectOfType<LeniaSeeder>();
+            seeder = Object.FindFirstObjectByType<LeniaSeeder>();
 #endif
         }
     }
@@ -77,3 +77,4 @@ public class LeniaPresets : MonoBehaviour
         if(seeder){ seeder.Clear(0f); seeder.SeedFewBlobs(90, 0.006f, 0.015f, 1f); }
     }
 }
+

@@ -193,3 +193,4 @@ public class LeniaSimulator : MonoBehaviour
         if (_kernelTex) Destroy(_kernelTex);
     }
 }
+

@@ -36,3 +36,4 @@ public class LeniaDisplay : MonoBehaviour
         t.Apply(false); t.wrapMode = TextureWrapMode.Clamp; return t;
     }
 }
+

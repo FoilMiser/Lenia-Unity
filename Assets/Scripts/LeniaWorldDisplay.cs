@@ -15,7 +15,7 @@ public class LeniaWorldDisplay : MonoBehaviour
 #if UNITY_2023_1_OR_NEWER
         if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
 #else
-        if (!sim) sim = FindObjectOfType<LeniaSimulator>();
+        if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
 #endif
         if (!targetCamera) targetCamera = Camera.main;
     }
@@ -71,3 +71,4 @@ public class LeniaWorldDisplay : MonoBehaviour
         return t;
     }
 }
+

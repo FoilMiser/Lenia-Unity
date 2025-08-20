@@ -37,7 +37,7 @@ public class LeniaSeeder : MonoBehaviour
 #if UNITY_2023_1_OR_NEWER
         if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
 #else
-        if (!sim) sim = FindObjectOfType<LeniaSimulator>();
+        if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
 #endif
     }
 
@@ -112,7 +112,7 @@ public class LeniaSeeder : MonoBehaviour
 #if UNITY_2023_1_OR_NEWER
             sim = FindFirstObjectByType<LeniaSimulator>();
 #else
-            sim = FindObjectOfType<LeniaSimulator>();
+            sim = FindFirstObjectByType<LeniaSimulator>();
 #endif
         }
         if (!Call("Clear")) Call("ClearState");
@@ -177,3 +177,4 @@ public class LeniaSeeder : MonoBehaviour
     public void SeedOrbium(float r){ orbiumRadius = r; mode = SeedMode.Orbium; SeedOnce(); }
     public void SeedOrbium(float r, float a){ orbiumRadius = r; orbiumAmplitude = a; mode = SeedMode.Orbium; SeedOnce(); }
 }
+

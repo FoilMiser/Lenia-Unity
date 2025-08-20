@@ -8,7 +8,7 @@ public class LeniaResolutionUI : MonoBehaviour
 #if UNITY_2023_1_OR_NEWER
         sim = Object.FindFirstObjectByType<LeniaSimulator>();
 #else
-        sim = Object.FindObjectOfType<LeniaSimulator>();
+        sim = Object.FindFirstObjectByType<LeniaSimulator>();
 #endif
     } }
     void OnGUI(){
@@ -22,3 +22,4 @@ public class LeniaResolutionUI : MonoBehaviour
         if(GUI.Button(new Rect(r.x+76, r.y, 64, 24), "+")) sim.SetStepsPerFrame(sim.stepsPerFrame+1);
     }
 }
+
