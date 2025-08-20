@@ -1,5 +1,7 @@
 ﻿using UnityEngine;
 using System.Linq;
+using System.Reflection;
+
 public enum SeedMode { None, Noise, Clusters, Movers, Orbium }
 
 [DisallowMultipleComponent]
@@ -23,8 +25,8 @@ public class LeniaSeeder : MonoBehaviour
     [Range(0f, 1f)] public float noiseAmplitude = 0.8f;
 
     [Header("Clusters & Movers")]
-    [Min(0)] public int count = 150;
-    [Min(0f)] public float radius = 12f;
+    [Min(0)] public int count = 120;
+    [Min(0f)] public float radius = 12f;           // ~ KernelRadius/2 for Radius=24
     [Range(0f, 1f)] public float amplitude = 0.7f;
 
     [Header("Orbium")]
@@ -32,8 +34,13 @@ public class LeniaSeeder : MonoBehaviour
     [Range(0f, 1f)] public float orbiumAmplitude = 0.9f;
 
     void Awake(){
+#if UNITY_2023_1_OR_NEWER
         if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
+#else
+        if (!sim) sim = FindObjectOfType<LeniaSimulator>();
+#endif
     }
+
     void Start(){
         if (autoSeedOnPlay) SeedOnce();
     }
@@ -43,10 +50,12 @@ public class LeniaSeeder : MonoBehaviour
     }
 
     // Reflection helper so we never hard-crash if a method signature differs.
-    bool Call(string method, params object[] args){
+    bool Call(string name, params object[] args){
         if (sim == null) return false;
         var t = sim.GetType();
-        foreach (var m in t.GetMethods().Where(mm => mm.Name == method)){
+        var methods = t.GetMethods(BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic)
+                       .Where(m => m.Name == name);
+        foreach (var m in methods){
             var ps = m.GetParameters();
             if (ps.Length != args.Length) continue;
             try { m.Invoke(sim, args); return true; } catch {}
@@ -55,17 +64,17 @@ public class LeniaSeeder : MonoBehaviour
     }
 
     public void SeedOnce(){
-        if (!sim) { Debug.LogWarning("LeniaSeeder: no simulator."); return; }
+        if (!sim) { Debug.LogWarning("LeniaSeeder: no simulator"); return; }
 
         InitRandom();
 
         if (clearBeforeSeed){
-            if (!Call("Clear")) { /* optional: sim state cleared elsewhere */ }
+            if (!Call("Clear")) Call("ClearState");
         }
 
         switch (mode){
+            case SeedMode.Noice: // typo guard (if someone serialized older name)
             case SeedMode.Noise:
-                // try (density, amplitude) then (density) then no-arg
                 if (!Call("SeedNoise", noiseDensity, noiseAmplitude))
                     if (!Call("SeedNoise", noiseDensity))
                         if (!Call("SeedNoise")) Call("SeedNoise", 0.02f);
@@ -94,45 +103,30 @@ public class LeniaSeeder : MonoBehaviour
                 break;
         }
     }
-    // Compatibility shim for older code calling seeder.SeedFewBlobs()
+
+    // ---------------- Compatibility overloads for older code ----------------
     public void SeedFewBlobs(){
-        if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
-        // sensible defaults if not set in Inspector
-        if (count <= 0) count = 120;
-        if (radius <= 0f) radius = 12f;   // ≈ KernelRadius/2 for Radius=24
-        if (amplitude <= 0f) amplitude = 0.7f;
         mode = SeedMode.Movers;
-        SeedOnce();
-    }
-    // --- Compatibility overloads for older code -----------------------------
-    // Legacy: Seed a few blobs (movers) with defaults from the inspector.
-    public void SeedFewBlobs() {
-        if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
         if (count <= 0) count = 120;
         if (radius <= 0f) radius = 12f;
         if (amplitude <= 0f) amplitude = 0.7f;
-        mode = SeedMode.Movers;
         SeedOnce();
     }
-    // Legacy 3-arg: (count, radius, amplitude)
-    public void SeedFewBlobs(int c, float r, float a) {
+    public void SeedFewBlobs(int c, float r, float a){
         count = c; radius = r; amplitude = a;
-        mode = SeedMode.Movers;
-        SeedOnce();
+        mode = SeedMode.Movers; SeedOnce();
     }
-    // Legacy 4-arg (variant A): (count, radius, amplitude, seed)
-    public void SeedFewBlobs(int c, float r, float a, int s) {
+    // (count, radius, amplitude, seed)
+    public void SeedFewBlobs(int c, float r, float a, int s){
         count = c; radius = r; amplitude = a;
         randomizeSeed = false; seed = s;
-        mode = SeedMode.Movers;
-        SeedOnce();
+        mode = SeedMode.Movers; SeedOnce();
     }
-    // Legacy 4-arg (variant B): (count, radius, amplitude, clearBeforeSeed)
-    public void SeedFewBlobs(int c, float r, float a, bool clear) {
+    // (count, radius, amplitude, clearBeforeSeed)
+    public void SeedFewBlobs(int c, float r, float a, bool clear){
         count = c; radius = r; amplitude = a;
         clearBeforeSeed = clear;
-        mode = SeedMode.Movers;
-        SeedOnce();
+        mode = SeedMode.Movers; SeedOnce();
     }
     // ------------------------------------------------------------------------
 }
