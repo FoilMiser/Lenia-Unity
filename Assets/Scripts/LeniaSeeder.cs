@@ -157,4 +157,7 @@ public class LeniaSeeder : MonoBehaviour
         mode = SeedMode.Movers; SeedOnce();
     }
     // -----------------------------------------------------------------
+    // Compatibility: some legacy presets pass numeric flags to Clear(...)
+    public void Clear(float x){ Clear(x > 0f); }
+    public void Clear(int   x){ Clear(x != 0); }
 }
