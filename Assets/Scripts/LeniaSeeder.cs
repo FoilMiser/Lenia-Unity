@@ -133,4 +133,24 @@ public class LeniaSeeder : MonoBehaviour
         count=c; radius=r; amplitude=a;
         mode=SeedMode.Movers; SeedOnce();
     }
+    // Compatibility: expose Clear() so presets can call seeder.Clear()
+    public void Clear(){
+        if (!sim) {
+#if UNITY_2023_1_OR_NEWER
+            sim = FindFirstObjectByType<LeniaSimulator>();
+#else
+            sim = FindObjectOfType<LeniaSimulator>();
+#endif
+        }
+        if (!Call(""Clear"")) Call(""ClearState"");
+    }
+    // Optional overload: Clear and optionally reseed noise
+    public void Clear(bool reseedNoise){
+        Clear();
+        if (reseedNoise){
+            if (!Call(""SeedNoise"", noiseDensity, noiseAmplitude))
+                if (!Call(""SeedNoise"", noiseDensity))
+                    Call(""SeedNoise"", 0.02f);
+        }
+    }
 }
