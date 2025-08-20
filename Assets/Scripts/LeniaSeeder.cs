@@ -160,4 +160,20 @@ public class LeniaSeeder : MonoBehaviour
     // Compatibility: some legacy presets pass numeric flags to Clear(...)
     public void Clear(float x){ Clear(x > 0f); }
     public void Clear(int   x){ Clear(x != 0); }
+    // --- Convenience & compatibility wrappers so presets compile ---
+    public void SeedNoise(){ mode = SeedMode.Noise; SeedOnce(); }
+    public void SeedNoise(float density){ noiseDensity = density; mode = SeedMode.Noise; SeedOnce(); }
+    public void SeedNoise(float density, float amp){ noiseDensity = density; noiseAmplitude = amp; mode = SeedMode.Noise; SeedOnce(); }
+
+    public void SeedClusters(){ mode = SeedMode.Clusters; SeedOnce(); }
+    public void SeedClusters(int c, float r){ count = c; radius = r; mode = SeedMode.Clusters; SeedOnce(); }
+    public void SeedClusters(int c, float r, float a){ count = c; radius = r; amplitude = a; mode = SeedMode.Clusters; SeedOnce(); }
+
+    public void SeedMovers(){ mode = SeedMode.Movers; SeedOnce(); }
+    public void SeedMovers(int c, float r){ count = c; radius = r; mode = SeedMode.Movers; SeedOnce(); }
+    public void SeedMovers(int c, float r, float a){ count = c; radius = r; amplitude = a; mode = SeedMode.Movers; SeedOnce(); }
+
+    public void SeedOrbium(){ mode = SeedMode.Orbium; SeedOnce(); }
+    public void SeedOrbium(float r){ orbiumRadius = r; mode = SeedMode.Orbium; SeedOnce(); }
+    public void SeedOrbium(float r, float a){ orbiumRadius = r; orbiumAmplitude = a; mode = SeedMode.Orbium; SeedOnce(); }
 }
