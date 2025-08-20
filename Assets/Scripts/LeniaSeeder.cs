@@ -104,4 +104,35 @@ public class LeniaSeeder : MonoBehaviour
         mode = SeedMode.Movers;
         SeedOnce();
     }
+    // --- Compatibility overloads for older code -----------------------------
+    // Legacy: Seed a few blobs (movers) with defaults from the inspector.
+    public void SeedFewBlobs() {
+        if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
+        if (count <= 0) count = 120;
+        if (radius <= 0f) radius = 12f;
+        if (amplitude <= 0f) amplitude = 0.7f;
+        mode = SeedMode.Movers;
+        SeedOnce();
+    }
+    // Legacy 3-arg: (count, radius, amplitude)
+    public void SeedFewBlobs(int c, float r, float a) {
+        count = c; radius = r; amplitude = a;
+        mode = SeedMode.Movers;
+        SeedOnce();
+    }
+    // Legacy 4-arg (variant A): (count, radius, amplitude, seed)
+    public void SeedFewBlobs(int c, float r, float a, int s) {
+        count = c; radius = r; amplitude = a;
+        randomizeSeed = false; seed = s;
+        mode = SeedMode.Movers;
+        SeedOnce();
+    }
+    // Legacy 4-arg (variant B): (count, radius, amplitude, clearBeforeSeed)
+    public void SeedFewBlobs(int c, float r, float a, bool clear) {
+        count = c; radius = r; amplitude = a;
+        clearBeforeSeed = clear;
+        mode = SeedMode.Movers;
+        SeedOnce();
+    }
+    // ------------------------------------------------------------------------
 }
