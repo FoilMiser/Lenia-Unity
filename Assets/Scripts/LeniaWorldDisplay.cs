@@ -32,16 +32,19 @@ public class LeniaWorldDisplay : MonoBehaviour
     }
 
     void FitToCamera(){
-        if(!targetCamera) return;
-        // Face camera and fill view
-        transform.LookAt(targetCamera.transform.position, Vector3.up);
-        float z = Mathf.Abs(targetCamera.transform.InverseTransformPoint(transform.position).z);
-        if (z < 0.01f) z = 1f;
-        float h = targetCamera.orthographic ? targetCamera.orthographicSize*2f
-                                            : 2f * z * Mathf.Tan(targetCamera.fieldOfView * 0.5f * Mathf.Deg2Rad);
-        float w = h * targetCamera.aspect;
-        transform.localScale = new Vector3(w, h, 1f);
-    }
+    if(!targetCamera) return;
+    // Distance from camera along its forward vector (keeps world display in front)
+    float d = Vector3.Dot(transform.position - targetCamera.transform.position, targetCamera.transform.forward);
+    if (d < 0.5f) d = 3f;
+    // Position and rotation exactly match the camera plane (no pitch/tilt)
+    transform.position = targetCamera.transform.position + targetCamera.transform.forward * d;
+    transform.rotation = targetCamera.transform.rotation;
+    // Compute size to fill view
+    float h = targetCamera.orthographic ? targetCamera.orthographicSize * 2f
+                                        : 2f * d * Mathf.Tan(targetCamera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+    float w = h * targetCamera.aspect;
+    transform.localScale = new Vector3(w, h, 1f);
+}
 
     Texture2D BuildDefaultRamp(){
         var t = new Texture2D(256,1,TextureFormat.RGB24,false,true);
@@ -55,3 +58,4 @@ public class LeniaWorldDisplay : MonoBehaviour
         t.wrapMode = TextureWrapMode.Clamp; t.Apply(false,false); return t;
     }
 }
+
