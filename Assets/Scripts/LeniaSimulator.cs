@@ -192,5 +192,94 @@ public class LeniaSimulator : MonoBehaviour
         if (_envTex) _envTex.Release();
         if (_kernelTex) Destroy(_kernelTex);
     }
-}
+    // ---------- Seeding helpers (compatible with LeniaSeeder & presets) ----------
+    void BlitArrayToState(float[] arr){
+        var tmp = new Texture2D(width, height, TextureFormat.RFloat, false, true);
+        var cols = new Color[width*height];
+        for(int i=0;i<cols.Length;i++) cols[i].r = Mathf.Clamp01(arr[i]);
+        tmp.SetPixels(cols); tmp.Apply(false,false);
+        Graphics.Blit(tmp, _stateA); Graphics.Blit(_stateA, _stateB);
+        Destroy(tmp);
+    }
+    void AddDisc(float[] arr, int cx, int cy, float r, float amp){
+        int R = Mathf.CeilToInt(r);
+        float inv = 1f / Mathf.Max(1e-5f, r * 0.5f);
+        for (int dy=-R; dy<=R; dy++){
+            int y = (cy + dy) % height; if (y<0) y += height;
+            for (int dx=-R; dx<=R; dx++){
+                int x = (cx + dx) % width; if (x<0) x += width;
+                float d = Mathf.Sqrt(dx*dx + dy*dy);
+                if (d <= r){
+                    // soft disc (Gaussian-ish)
+                    float v = amp * Mathf.Exp(-0.5f * Mathf.Pow(d*inv, 2f));
+                    int idx = y*width + x;
+                    if (v > arr[idx]) arr[idx] = v;
+                }
+            }
+        }
+    }
+    public void Clear(){
+        Graphics.Blit(Texture2D.blackTexture, _stateA);
+        Graphics.Blit(_stateA, _stateB);
+    }
+    public void ClearState(){ Clear(); }
 
+    // Noise
+    public void SeedNoise(){ SeedNoise(0.015f, 0.8f); }
+    public void SeedNoise(float density){ SeedNoise(density, 0.8f); }
+    public void SeedNoise(float density, float amplitude){
+        var rnd = new System.Random(Environment.TickCount);
+        var arr = new float[width*height];
+        for (int i=0;i<arr.Length;i++){
+            if (rnd.NextDouble() < density){
+                // bias toward high but capped by amplitude
+                float u = (float)rnd.NextDouble();
+                arr[i] = Mathf.Min(amplitude, 0.5f + 0.5f*u);
+            }
+        }
+        BlitArrayToState(arr);
+    }
+
+    // Clusters
+    public void SeedClusters(){ SeedClusters(150, Mathf.Max(6f, kernelRadius*0.5f), 0.7f); }
+    public void SeedClusters(int count, float radius){ SeedClusters(count, radius, 0.7f); }
+    public void SeedClusters(int count, float radius, float amplitude){
+        var rnd = new System.Random(Environment.TickCount);
+        var arr = new float[width*height];
+        for (int i=0;i<count;i++){
+            int cx = rnd.Next(width);
+            int cy = rnd.Next(height);
+            AddDisc(arr, cx, cy, radius, amplitude);
+        }
+        BlitArrayToState(arr);
+    }
+
+    // Movers (pairs of offset discs to break symmetry)
+    public void SeedMovers(){ SeedMovers(120, Mathf.Max(6f, kernelRadius*0.5f), 0.7f); }
+    public void SeedMovers(int count, float radius){ SeedMovers(count, radius, 0.7f); }
+    public void SeedMovers(int count, float radius, float amplitude){
+        var rnd = new System.Random(Environment.TickCount);
+        var arr = new float[width*height];
+        float sep = Mathf.Max(2f, radius * 0.6f);
+        for (int i=0;i<count;i++){
+            int cx = rnd.Next(width);
+            int cy = rnd.Next(height);
+            float ang = (float)(rnd.NextDouble() * Mathf.PI * 2.0);
+            int dx = Mathf.RoundToInt(sep * Mathf.Cos(ang));
+            int dy = Mathf.RoundToInt(sep * Mathf.Sin(ang));
+            AddDisc(arr, cx - dx/2, cy - dy/2, radius, amplitude);
+            AddDisc(arr, cx + dx/2, cy + dy/2, radius, amplitude * 0.9f);
+        }
+        BlitArrayToState(arr);
+    }
+
+    // Optional single central organism
+    public void SeedOrbium(){ SeedOrbium(Mathf.Max(8f, kernelRadius*0.75f), 0.9f); }
+    public void SeedOrbium(float r){ SeedOrbium(r, 0.9f); }
+    public void SeedOrbium(float r, float a){
+        var arr = new float[width*height];
+        AddDisc(arr, width/2, height/2, r, a);
+        BlitArrayToState(arr);
+    }
+    // --------------------------------------------------------------------------
+}
