@@ -22,19 +22,19 @@ float _HardWall;
 [numthreads(8,8,1)]
 void Update(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= _Width || id.y >= _Height) return;
+    int ix = (int)id.x;
+    int iy = (int)id.y;
+    if (ix >= _Width || iy >= _Height) return;
 
     const int R = _KernelRadius;
     float2 invDim = 1.0 / float2(_Width, _Height);
-    float2 baseUV = (float2(id.xy) + 0.5) * invDim; // pixel-center UV
+    float2 baseUV = (float2(ix, iy) + 0.5) * invDim;
 
     float sum = 0.0;
-    [loop]
-    for (int dy = -R; dy <= R; ++dy)
+    [loop] for (int dy = -R; dy <= R; ++dy)
     {
         int ky = dy + R;
-        [loop]
-        for (int dx = -R; dx <= R; ++dx)
+        [loop] for (int dx = -R; dx <= R; ++dx)
         {
             int kx = dx + R;
             float w = _KernelTex.Load(int3(kx, ky, 0)).r;
@@ -64,5 +64,5 @@ void Update(uint3 id : SV_DispatchThreadID)
         a1 *= wall;
     }
 
-    _StateOut[id.xy] = a1;
+    _StateOut[int2(ix, iy)] = a1;
 }
