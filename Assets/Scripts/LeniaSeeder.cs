@@ -73,7 +73,7 @@ public class LeniaSeeder : MonoBehaviour
         }
 
         switch (mode){
-            case SeedMode.Noice: // typo guard (if someone serialized older name)
+            case SeedMode.Noise: // typo guard (if someone serialized older name)
             case SeedMode.Noise:
                 if (!Call("SeedNoise", noiseDensity, noiseAmplitude))
                     if (!Call("SeedNoise", noiseDensity))
@@ -130,5 +130,6 @@ public class LeniaSeeder : MonoBehaviour
     }
     // ------------------------------------------------------------------------
 }
+
 
 
