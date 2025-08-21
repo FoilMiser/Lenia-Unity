@@ -112,5 +112,15 @@ public class LeniaSimulation : MonoBehaviour
         if (view) view.texture = _A;
     }
     public RenderTexture CurrentTexture => _A;
+    // --- Compatibility shims for legacy UI scripts ---
+    public void SetStepsPerFrame(int v){ stepsPerFrame = Mathf.Max(0, v); }
+    public void SetAutoRun(bool run){ autoRun = run; }
+    public void SetSeedFill(float v){ seedFill = Mathf.Clamp01(v); }
+    public void SetResolution(UnityEngine.Vector2Int res){ if (res.x<8||res.y<8) return; resolution = res; EnsureRTs(); ApplyProfiles(); }
+    public void SetResolutionWH(int w,int h){ SetResolution(new UnityEngine.Vector2Int(Mathf.Max(8,w), Mathf.Max(8,h))); }
+    public void SetKernelProfile(LeniaKernelProfile k){ kernelProfile = k; ApplyProfiles(); }
+    public void SetGrowthProfile(LeniaGrowthProfile g){ growth = g; ApplyProfiles(); }
+    public void SetMuSigma(float mu, float sigma){ if (growth != null){ growth.mu = mu; growth.sigma = Mathf.Max(1e-4f, sigma);} leniaCS.SetFloat("_Mu", growth? growth.mu:mu); leniaCS.SetFloat("_Sigma", growth? growth.sigma:sigma); }
+    public void SetDt(float dt){ if (growth != null) growth.dt = Mathf.Max(1e-4f, dt); leniaCS.SetFloat("_Dt", growth? growth.dt:dt); }
 }
 
