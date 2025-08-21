@@ -60,10 +60,7 @@ public class LeniaSimulation : MonoBehaviour
     }
 
     // ---------- Core ----------
-    public void ApplyProfiles()
-    {
-        EnsureDefaults();
-        if (leniaCS == null) { Debug.LogError("Lenia: Compute shader missing."); return; }
+    public void ApplyProfiles(){ EnsureDefaults(); EnsureRTs(); if (leniaCS == null) { Debug.LogError("Lenia: Compute shader missing."); return; }
 
         var K = kernelProfile ? kernelProfile.GetOrBuildKernelTexture() : null;
         if (K == null) { Debug.LogError("Lenia: Kernel texture is null."); return; }
@@ -75,6 +72,7 @@ public class LeniaSimulation : MonoBehaviour
         leniaCS.SetFloat("_Sigma", growth ? growth.sigma : 0.015f);
         leniaCS.SetFloat("_Dt",    growth ? growth.dt    : 0.1f);
 
+        if (_A == null || _B == null){ Debug.LogWarning("Lenia: RenderTextures not ready; skipping ApplyProfiles this frame."); return; }
         leniaCS.SetTexture(_kStep, "_StateIn",  _A);
         leniaCS.SetTexture(_kStep, "_StateOut", _B);
         leniaCS.SetInts("_Resolution", new int[]{ resolution.x, resolution.y });
@@ -88,6 +86,7 @@ public class LeniaSimulation : MonoBehaviour
         if (leniaCS == null) return;
         leniaCS.Dispatch(_kStep, Mathf.CeilToInt(resolution.x / 8f), Mathf.CeilToInt(resolution.y / 8f), 1);
         var t = _A; _A = _B; _B = t; // ping-pong
+        if (_A == null || _B == null){ Debug.LogWarning("Lenia: RenderTextures not ready; skipping ApplyProfiles this frame."); return; }
         leniaCS.SetTexture(_kStep, "_StateIn",  _A);
         leniaCS.SetTexture(_kStep, "_StateOut", _B);
         if (view) view.texture = _A;
@@ -400,3 +399,4 @@ public class LeniaSimulation : MonoBehaviour
         }
     }
 }
+
