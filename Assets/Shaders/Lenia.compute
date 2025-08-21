@@ -1,68 +1,40 @@
-﻿#pragma kernel Update
+﻿#pragma kernel Step
 
-Texture2D<float>   _StateIn;
+RWTexture2D<float> _StateIn;
 RWTexture2D<float> _StateOut;
 Texture2D<float>   _KernelTex;
-Texture2D<float>   _EnvTex;
 
-SamplerState samplerPointRepeat
-{
-    Filter = MIN_MAG_MIP_POINT;
-    AddressU = Wrap;
-    AddressV = Wrap;
-    AddressW = Wrap;
-};
-
-int   _Width, _Height;
-int   _KernelRadius;
-float _Mu, _Sigma, _Beta, _Dt;
-float _EnvScale;
-float _HardWall;
+int _Resolution[2];
+int _KernelRadius;
+float _Dt;
+float _Mu;
+float _Sigma;
 
 [numthreads(8,8,1)]
-void Update(uint3 id : SV_DispatchThreadID)
+void Step (uint3 id : SV_DispatchThreadID)
 {
-    int ix = (int)id.x;
-    int iy = (int)id.y;
-    if (ix >= _Width || iy >= _Height) return;
+    if (id.x >= _Resolution[0] || id.y >= _Resolution[1]) return;
 
-    const int R = _KernelRadius;
-    float2 invDim = 1.0 / float2(_Width, _Height);
-    float2 baseUV = (float2(ix, iy) + 0.5) * invDim;
+    int2 p = int2(id.xy);
+    float u = 0.0;
+    const int r = _KernelRadius;
+    const int size = r * 2 + 1;
 
-    float sum = 0.0;
-    [loop] for (int dy = -R; dy <= R; ++dy)
+    // circular convolution with wraparound
+    [loop] for (int oy = -r; oy <= r; oy++)
     {
-        int ky = dy + R;
-        [loop] for (int dx = -R; dx <= R; ++dx)
+        [loop] for (int ox = -r; ox <= r; ox++)
         {
-            int kx = dx + R;
-            float w = _KernelTex.Load(int3(kx, ky, 0)).r;
-            float2 uv = baseUV + float2(dx, dy) * invDim;
-            float a = _StateIn.SampleLevel(samplerPointRepeat, uv, 0).r;
-            sum += w * a;
+            int2 q = int2( (p.x + ox + _Resolution[0]) % _Resolution[0],
+                           (p.y + oy + _Resolution[1]) % _Resolution[1] );
+            float k = _KernelTex.Load(int3(ox + r, oy + r, 0));
+            u += k * _StateIn[q];
         }
     }
 
-    float s = sum;
-    float g = 2.0 * exp(-((s - _Mu)*(s - _Mu)) / (2.0 * _Sigma * _Sigma)) - 1.0;
-
-    float a0 = _StateIn.SampleLevel(samplerPointRepeat, baseUV, 0).r;
-
-    float env = 1.0;
-    if (_EnvScale > 0.0)
-    {
-        env = _EnvTex.SampleLevel(samplerPointRepeat, baseUV, 0).r;
-        env = lerp(1.0, env, _EnvScale);
-    }
-
-    float a1 = saturate(a0 + _Dt * _Beta * g * env);
-
-    if (_HardWall > 0.5)
-    {
-        float wall = _EnvTex.SampleLevel(samplerPointRepeat, baseUV, 0).r;
-        a1 *= wall;
-    }
-
-    _StateOut[int2(ix, iy)] = a1;
+    // Standard Lenia growth bump in [-1,1], then Euler integrate
+    float g = exp(-0.5 * ((u - _Mu) * (u - _Mu)) / (_Sigma * _Sigma + 1e-8));
+    g = g * 2.0 - 1.0;
+    float a = _StateIn[p] + _Dt * g;
+    _StateOut[p] = saturate(a);
 }
