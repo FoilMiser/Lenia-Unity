@@ -125,5 +125,42 @@ public class LeniaSimulation : MonoBehaviour
     // --- Compatibility properties for legacy scripts ---
     public RenderTexture EnvTex => _A;
     public RenderTexture CurrentState => _A;
+
+    // ===== Legacy compatibility shims for UI/Presets =====
+    private bool _useRingKernel = true;
+    public bool useRingKernel { get => _useRingKernel; set { _useRingKernel = value; /* always ring kernel */ } }
+    public bool useMultiRing
+    {
+        get => kernelProfile && kernelProfile.ringCount > 1;
+        set { if (kernelProfile) { kernelProfile.EnsureRingCount(value ? 2 : 1); ApplyProfiles(); } }
+    }
+    public int width  { get => resolution.x; set => SetResolutionWH(value, resolution.y); }
+    public int height { get => resolution.y; set => SetResolutionWH(resolution.x, value); }
+    public float ringCenter
+    {
+        get => (kernelProfile && kernelProfile.means != null && kernelProfile.means.Length > 0) ? kernelProfile.means[0] : 0.5f;
+        set { if (!kernelProfile) return; kernelProfile.EnsureRingCount(1); kernelProfile.means[0] = Mathf.Clamp01(value); kernelProfile.Invalidate(); ApplyProfiles(); }
+    }
+    public float ringWidth
+    {
+        get => (kernelProfile && kernelProfile.stddevs != null && kernelProfile.stddevs.Length > 0) ? kernelProfile.stddevs[0] : 0.08f;
+        set { if (!kernelProfile) return; kernelProfile.EnsureRingCount(1); kernelProfile.stddevs[0] = Mathf.Max(1e-4f, value); kernelProfile.Invalidate(); ApplyProfiles(); }
+    }
+    public float ring2Center
+    {
+        get => (kernelProfile && kernelProfile.means != null && kernelProfile.means.Length > 1) ? kernelProfile.means[1] : 0.62f;
+        set { if (!kernelProfile) return; kernelProfile.EnsureRingCount(2); kernelProfile.means[1] = Mathf.Clamp01(value); kernelProfile.Invalidate(); ApplyProfiles(); }
+    }
+    public float ring2Width
+    {
+        get => (kernelProfile && kernelProfile.stddevs != null && kernelProfile.stddevs.Length > 1) ? kernelProfile.stddevs[1] : 0.07f;
+        set { if (!kernelProfile) return; kernelProfile.EnsureRingCount(2); kernelProfile.stddevs[1] = Mathf.Max(1e-4f, value); kernelProfile.Invalidate(); ApplyProfiles(); }
+    }
+    public float ring2Weight
+    {
+        get => (kernelProfile && kernelProfile.peaks != null && kernelProfile.peaks.Length > 1) ? kernelProfile.peaks[1] : 0.65f;
+        set { if (!kernelProfile) return; kernelProfile.EnsureRingCount(2); kernelProfile.peaks[1] = Mathf.Max(0f, value); kernelProfile.Invalidate(); ApplyProfiles(); }
+    }
+    public void ApplyPreset() { ApplyProfiles(); }
 }
 
