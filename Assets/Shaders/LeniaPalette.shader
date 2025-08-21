@@ -25,7 +25,7 @@
             #include "UnityCG.cginc"
             sampler2D _MainTex, _TrailTex, _PaletteTex;
             float4 _MainTex_TexelSize;
-            float _Exposure,_Gamma,_PaletteOffset,_PaletteScale,_EdgeStrength,_EdgeThreshold,_TrailWeight,_UseEdges,_UseTrail;
+            float _Exposure,_Gamma,_PaletteOffset,_PaletteScale,_EdgeStrength,_EdgeThreshold,_TrailWeight,_UseEdges,_UseTrail; float _TrailMode;
             float4 _TrailTint;
 
             struct v2f { float4 pos:SV_POSITION; float2 uv:TEXCOORD0; };
@@ -58,13 +58,26 @@
                 // trail as SCREEN blend so tint shows over bright palette:
                 // screen(a,b) = 1 - (1-a)*(1-b)
                 if (_UseTrail > 0.5){
-                    float t = tex2D(_TrailTex, i.uv).r * _TrailWeight;
-                    float3 trailCol = saturate(_TrailTint.rgb) * saturate(t);
-                    col = 1.0 - (1.0 - col) * (1.0 - trailCol);
-                }
+    float tr = tex2D(_TrailTex, i.uv).r;
+    float t = saturate(tr * _TrailWeight);
+    float3 tint = saturate(_TrailTint.rgb);
+    float3 trailCol = tint * t;
+
+    if (_TrailMode < 0.5) {
+        // SCREEN
+        col = 1.0 - (1.0 - col) * (1.0 - trailCol);
+    } else if (_TrailMode < 1.5) {
+        // ADD
+        col = saturate(col + trailCol);
+    } else {
+        // LERP to pure tint by trail strength
+        col = lerp(col, tint, t);
+    }
+}
                 return float4(col,1);
             }
             ENDHLSL
         }
     }
 }
+
