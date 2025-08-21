@@ -30,6 +30,7 @@ public class LeniaSimulation : MonoBehaviour
     public float trailBoost = 1.0f;
     public float trailWeight = 0.6f;
     public Color trailTint = new Color(1f, 0.85f, 0.4f, 1f);
+    [Range(0,2)] public int trailMode = 2;  // 0=Screen, 1=Add, 2=Lerp
 
     RenderTexture _A, _B, _Trail;
     int _kStep;
@@ -249,7 +250,8 @@ public class LeniaSimulation : MonoBehaviour
             _dispMat.SetFloat("_EdgeThreshold", edgeThreshold);
             _dispMat.SetFloat("_UseEdges", useEdges ? 1f : 0f);
             _dispMat.SetFloat("_UseTrail", useTrail ? 1f : 0f);
-            _dispMat.SetFloat("_TrailWeight", trailWeight);
+            
+            _dispMat.SetFloat("_TrailMode", trailMode);_dispMat.SetFloat("_TrailWeight", trailWeight);
             _dispMat.SetColor("_TrailTint", trailTint);
         }
     }
@@ -347,4 +349,5 @@ public class LeniaSimulation : MonoBehaviour
         ApplyProfiles();
     }
 }
+
 
