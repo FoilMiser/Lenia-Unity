@@ -4,8 +4,8 @@ RWTexture2D<float> _StateIn;
 RWTexture2D<float> _StateOut;
 Texture2D<float>   _KernelTex;
 
-int _Resolution[2];
-int _KernelRadius;
+uint2 _Resolution;
+uint  _KernelRadius;
 float _Dt;
 float _Mu;
 float _Sigma;
@@ -13,28 +13,32 @@ float _Sigma;
 [numthreads(8,8,1)]
 void Step (uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= _Resolution[0] || id.y >= _Resolution[1]) return;
+    if (id.x >= _Resolution.x || id.y >= _Resolution.y) return;
 
     int2 p = int2(id.xy);
     float u = 0.0;
-    const int r = _KernelRadius;
-    const int size = r * 2 + 1;
+    const int r = (int)_KernelRadius;
 
-    // circular convolution with wraparound
+    // circular convolution with branchy wrap (avoids modulus warnings/cost)
     [loop] for (int oy = -r; oy <= r; oy++)
     {
+        int yy = p.y + oy;
+        if (yy < 0) yy += (int)_Resolution.y; else if (yy >= (int)_Resolution.y) yy -= (int)_Resolution.y;
+
         [loop] for (int ox = -r; ox <= r; ox++)
         {
-            int2 q = int2( (p.x + ox + _Resolution[0]) % _Resolution[0],
-                           (p.y + oy + _Resolution[1]) % _Resolution[1] );
+            int xx = p.x + ox;
+            if (xx < 0) xx += (int)_Resolution.x; else if (xx >= (int)_Resolution.x) xx -= (int)_Resolution.x;
+
             float k = _KernelTex.Load(int3(ox + r, oy + r, 0));
-            u += k * _StateIn[q];
+            u += k * _StateIn[int2(xx, yy)];
         }
     }
 
-    // Standard Lenia growth bump in [-1,1], then Euler integrate
+    // Standard Lenia growth bump
     float g = exp(-0.5 * ((u - _Mu) * (u - _Mu)) / (_Sigma * _Sigma + 1e-8));
     g = g * 2.0 - 1.0;
+
     float a = _StateIn[p] + _Dt * g;
     _StateOut[p] = saturate(a);
 }
