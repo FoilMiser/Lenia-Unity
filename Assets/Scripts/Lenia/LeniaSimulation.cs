@@ -49,8 +49,7 @@ public class LeniaSimulation : MonoBehaviour
         rt.Create();
     }
 
-    void EnsureView()
-    {
+    void EnsureView(){
         if (view == null)
         {
             var go = GameObject.Find("LeniaViewCanvas") ?? new GameObject("LeniaViewCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
@@ -60,7 +59,7 @@ public class LeniaSimulation : MonoBehaviour
             view = imgGO.GetComponent<RawImage>();
             imgGO.GetComponent<RectTransform>().sizeDelta = new Vector2(1024, 1024);
         }
-        view.texture = _A;
+        view.texture = _A; ApplyDisplayMaterialIfMissing();
     }
 
     public void ApplyProfiles()
@@ -109,7 +108,7 @@ public class LeniaSimulation : MonoBehaviour
         var t = _A; _A = _B; _B = t;
         leniaCS.SetTexture(_kStep, "_StateIn", _A);
         leniaCS.SetTexture(_kStep, "_StateOut", _B);
-        if (view) view.texture = _A;
+        if (view) view.texture = _A; ApplyDisplayMaterialIfMissing();
     }
     public RenderTexture CurrentTexture => _A;
     // --- Compatibility shims for legacy UI scripts ---
@@ -213,6 +212,19 @@ public class LeniaSimulation : MonoBehaviour
 
         kernelProfile.Invalidate();
         ApplyProfiles();
+    }
+
+    void ApplyDisplayMaterialIfMissing()
+    {
+        if (view != null && (view.material == null))
+        {
+            var mat = Resources.Load<Material>("LeniaDisplay");
+            if (mat != null)
+            {
+                view.material = mat;
+                view.color = Color.white;
+            }
+        }
     }
 }
 
