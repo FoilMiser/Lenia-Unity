@@ -225,7 +225,7 @@ public class LeniaSimulation : MonoBehaviour
         if (_dispMat == null){ var sh = Shader.Find("Unlit/LeniaPalette"); if (sh) _dispMat = new Material(sh); }
         if (_trailMat== null){ var sh = Shader.Find("Hidden/LeniaTrailUpdate"); if (sh) _trailMat = new Material(sh); }
         if (_paletteTex == null) _paletteTex = BuildViridisPalette();
-        if (view != null && view.material == null && _dispMat != null) view.material = _dispMat;
+        if (view != null && _dispMat != null) view.material = _dispMat;
 
         if (useTrail && _trailMat != null)
         {
@@ -347,3 +347,4 @@ public class LeniaSimulation : MonoBehaviour
         ApplyProfiles();
     }
 }
+
