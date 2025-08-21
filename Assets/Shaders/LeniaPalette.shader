@@ -3,14 +3,14 @@
     Properties{
         _MainTex("State", 2D) = "black" {}
         _TrailTex("Trail", 2D) = "black" {}
-        _Exposure("Exposure", Float) = 12.0
+        _Exposure("Exposure", Float) = 8.0
         _Gamma("Gamma", Float) = 1.2
         _PaletteOffset("Palette Offset", Float) = 0.0
         _PaletteScale("Palette Scale", Float) = 1.0
         _EdgeStrength("Edge Strength", Float) = 0.8
         _EdgeThreshold("Edge Threshold", Float) = 0.015
         _TrailWeight("Trail Weight", Float) = 0.6
-        _TrailTint("Trail Tint", Color) = (1,0.85,0.4,1)
+        _TrailTint("Trail Tint", Color) = (1,0.85,0.2,1)
         _UseEdges("Use Edges", Float) = 1
         _UseTrail("Use Trail", Float) = 1
         _PaletteTex("Palette", 2D) = "white" {}
@@ -41,6 +41,7 @@
                 float vv = pow(saturate(v * _Exposure), max(1e-3,_Gamma));
                 float3 col = palette(vv);
 
+                // edges (simple gradient magnitude)
                 if (_UseEdges > 0.5){
                     float2 px = _MainTex_TexelSize.xy;
                     float vl = tex2D(_MainTex, i.uv - float2(px.x,0)).r;
@@ -54,9 +55,12 @@
                     col = saturate(col + edge.xxx);
                 }
 
+                // trail as SCREEN blend so tint shows over bright palette:
+                // screen(a,b) = 1 - (1-a)*(1-b)
                 if (_UseTrail > 0.5){
-                    float t = tex2D(_TrailTex, i.uv).r;
-                    col = saturate(col + _TrailTint.rgb * (t * _TrailWeight));
+                    float t = tex2D(_TrailTex, i.uv).r * _TrailWeight;
+                    float3 trailCol = saturate(_TrailTint.rgb) * saturate(t);
+                    col = 1.0 - (1.0 - col) * (1.0 - trailCol);
                 }
                 return float4(col,1);
             }
