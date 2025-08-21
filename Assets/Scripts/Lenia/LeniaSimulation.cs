@@ -162,5 +162,57 @@ public class LeniaSimulation : MonoBehaviour
         set { if (!kernelProfile) return; kernelProfile.EnsureRingCount(2); kernelProfile.peaks[1] = Mathf.Max(0f, value); kernelProfile.Invalidate(); ApplyProfiles(); }
     }
     public void ApplyPreset() { ApplyProfiles(); }
+
+    // Flexible legacy overload: ApplyPreset(bool useRing, bool useMulti, float ringCenter, float ringWidth, [float ring2Center/Width/Weight...])
+    public void ApplyPreset(params object[] args)
+    {
+        // No-arg still supported by the other overload
+        if (args == null || args.Length == 0) { ApplyProfiles(); return; }
+        if (kernelProfile == null) return;
+
+        bool? useRing = null, useMulti = null;
+        var vals = new System.Collections.Generic.List<float>();
+
+        foreach (var a in args)
+        {
+            if (a is bool b)
+            { if (useRing == null) useRing = b; else useMulti = b; }
+            else if (a is float f) vals.Add(f);
+            else if (a is double d) vals.Add((float)d);
+            else if (a is int i) vals.Add(i);
+            else if (a != null)
+            {
+                float parsed;
+                if (float.TryParse(a.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out parsed))
+                    vals.Add(parsed);
+            }
+        }
+
+        // Decide ring count
+        int rc = (useMulti.HasValue && useMulti.Value) ? 2 : 1;
+        if (vals.Count >= 4) rc = 2; // heuristic: if 4+ floats provided, assume two rings
+
+        kernelProfile.EnsureRingCount(rc);
+
+        // Map values: [c0, w0, (c1, w1, [w1Peak])]
+        if (rc >= 1 && vals.Count >= 2)
+        {
+            kernelProfile.means[0]   = Mathf.Clamp01(vals[0]);
+            kernelProfile.stddevs[0] = Mathf.Max(1e-4f, vals[1]);
+        }
+        if (rc >= 2 && vals.Count >= 4)
+        {
+            kernelProfile.means[1]   = Mathf.Clamp01(vals[2]);
+            kernelProfile.stddevs[1] = Mathf.Max(1e-4f, vals[3]);
+        }
+        if (rc >= 2 && vals.Count >= 5)
+        {
+            // optional peak/weight for ring2
+            kernelProfile.peaks[1]   = Mathf.Max(0f, vals[4]);
+        }
+
+        kernelProfile.Invalidate();
+        ApplyProfiles();
+    }
 }
 
