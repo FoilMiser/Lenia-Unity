@@ -122,5 +122,8 @@ public class LeniaSimulation : MonoBehaviour
     public void SetGrowthProfile(LeniaGrowthProfile g){ growth = g; ApplyProfiles(); }
     public void SetMuSigma(float mu, float sigma){ if (growth != null){ growth.mu = mu; growth.sigma = Mathf.Max(1e-4f, sigma);} leniaCS.SetFloat("_Mu", growth? growth.mu:mu); leniaCS.SetFloat("_Sigma", growth? growth.sigma:sigma); }
     public void SetDt(float dt){ if (growth != null) growth.dt = Mathf.Max(1e-4f, dt); leniaCS.SetFloat("_Dt", growth? growth.dt:dt); }
+    // --- Compatibility properties for legacy scripts ---
+    public RenderTexture EnvTex => _A;
+    public RenderTexture CurrentState => _A;
 }
 
