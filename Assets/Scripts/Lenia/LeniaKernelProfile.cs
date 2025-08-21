@@ -54,8 +54,9 @@ public class LeniaKernelProfile : ScriptableObject
             sum += val;
         }
         // normalize kernel so sum(K) == number of pixels (keeps growth scale stable)
-        float norm = (float)(sum / data.Length);
-        if (norm > 1e-8f) for (int i = 0; i < data.Length; i++) data[i] /= norm;
+        float norm = (float)sum;
+        if (norm > 1e-8f) { for (int i = 0; i < data.Length; i++) data[i] /= norm; }
+else { for (int i = 0; i < data.Length; i++) data[i] = 0f; data[data.Length/2] = 1f; }
 
         _kernelTex.SetPixelData(data, 0);
         _kernelTex.Apply(false, true);
@@ -73,4 +74,5 @@ public class LeniaKernelProfile : ScriptableObject
 
     public void Invalidate() { _kernelTex = null; }
 }
+
 
