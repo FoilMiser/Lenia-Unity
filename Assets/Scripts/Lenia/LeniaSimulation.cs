@@ -30,11 +30,16 @@ public class LeniaSimulation : MonoBehaviour
     public float trailBoost = 1.0f;
     public float trailWeight = 0.6f;
     public Color trailTint = new Color(1f, 0.85f, 0.4f, 1f);
+    public bool  useGlow = true;
+    public float glowThreshold = 0.35f;
+    public float glowSigma = 2.0f;
+    public float glowStrength = 0.7f;
+    public Color glowTint = new Color(1f,0.8f,0.4f,1f);
     [Range(0,2)] public int trailMode = 2;  // 0=Screen, 1=Add, 2=Lerp
 
-    RenderTexture _A, _B, _Trail;
+    RenderTexture _A, _B, _Trail, _GlowA, _GlowB;
     int _kStep;
-    Material _dispMat, _trailMat;
+    Material _dispMat, _trailMat, _blurMat;
     Texture2D _paletteTex;
 
     void Awake()
@@ -75,7 +80,7 @@ public class LeniaSimulation : MonoBehaviour
         leniaCS.SetInts("_Resolution", new int[]{ resolution.x, resolution.y });
 
         if (view) view.texture = _A;
-        UpdateTrailAndMaterial();
+        UpdateTrailAndMaterial(); UpdateGlow();
     }
 
     public void Step()
@@ -86,7 +91,7 @@ public class LeniaSimulation : MonoBehaviour
         leniaCS.SetTexture(_kStep, "_StateIn",  _A);
         leniaCS.SetTexture(_kStep, "_StateOut", _B);
         if (view) view.texture = _A;
-        UpdateTrailAndMaterial();
+        UpdateTrailAndMaterial(); UpdateGlow();
     }
 
     // ---------- Setup ----------
@@ -148,7 +153,7 @@ public class LeniaSimulation : MonoBehaviour
         }
         view.texture = _A;
         ApplyDisplayMaterialIfMissing();
-        UpdateTrailAndMaterial();
+        UpdateTrailAndMaterial(); UpdateGlow();
     }
 
     // ---------- Seeding ----------
@@ -348,6 +353,50 @@ public class LeniaSimulation : MonoBehaviour
         kernelProfile.Invalidate();
         ApplyProfiles();
     }
+
+    void EnsureGlowRTs()
+    {
+        if (_GlowA != null && _GlowA.IsCreated() && _GlowA.width == resolution.x && _GlowA.height == resolution.y) { }
+        else {
+            if (_GlowA != null) _GlowA.Release();
+            if (_GlowB != null) _GlowB.Release();
+            _GlowA = new RenderTexture(resolution.x, resolution.y, 0, RenderTextureFormat.RFloat)
+            { enableRandomWrite=false, wrapMode=TextureWrapMode.Clamp, filterMode=FilterMode.Bilinear };
+            _GlowB = new RenderTexture(resolution.x, resolution.y, 0, RenderTextureFormat.RFloat)
+            { enableRandomWrite=false, wrapMode=TextureWrapMode.Clamp, filterMode=FilterMode.Bilinear };
+            _GlowA.Create(); _GlowB.Create();
+        }
+    }
+
+    void UpdateGlow()
+    {
+        if (!useGlow) { if (_dispMat) _dispMat.SetFloat("_UseGlow", 0f); return; }
+
+        if (_blurMat == null)
+        {
+            var sh = Shader.Find("Hidden/LeniaBlurThreshold");
+            if (sh) _blurMat = new Material(sh);
+        }
+        if (_blurMat == null) { if (_dispMat) _dispMat.SetFloat("_UseGlow", 0f); return; }
+
+        EnsureGlowRTs();
+
+        _blurMat.SetFloat("_Threshold", glowThreshold);
+        _blurMat.SetFloat("_Sigma", glowSigma);
+
+        // Horizontal
+        _blurMat.SetVector("_Direction", new Vector4(1,0,0,0));
+        Graphics.Blit(_A, _GlowA, _blurMat);
+        // Vertical
+        _blurMat.SetVector("_Direction", new Vector4(0,1,0,0));
+        Graphics.Blit(_GlowA, _GlowB, _blurMat);
+
+        if (_dispMat)
+        {
+            _dispMat.SetTexture("_GlowTex", _GlowB);
+            _dispMat.SetFloat("_UseGlow", 1f);
+            _dispMat.SetFloat("_GlowStrength", glowStrength);
+            _dispMat.SetColor("_GlowTint", glowTint);
+        }
+    }
 }
-
-
