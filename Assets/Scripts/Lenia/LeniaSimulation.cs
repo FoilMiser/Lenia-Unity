@@ -60,7 +60,7 @@ public class LeniaSimulation : MonoBehaviour
     }
 
     // ---------- Core ----------
-    public void ApplyProfiles(){ EnsureDefaults(); EnsureRTs(); if (leniaCS == null) { Debug.LogError("Lenia: Compute shader missing."); return; }
+    public void ApplyProfiles(){ EnsureDefaults(); EnsureRTs(); EnsureRTs(); if (leniaCS == null) { Debug.LogError("Lenia: Compute shader missing."); return; }
 
         var K = kernelProfile ? kernelProfile.GetOrBuildKernelTexture() : null;
         if (K == null) { Debug.LogError("Lenia: Kernel texture is null."); return; }
@@ -120,7 +120,7 @@ public class LeniaSimulation : MonoBehaviour
     {
         CreateRT(ref _A);
         CreateRT(ref _B);
-        EnsureTrailRT();
+        EnsureTrailRTs();
     }
     void CreateRT(ref RenderTexture rt)
     {
@@ -216,12 +216,24 @@ public class LeniaSimulation : MonoBehaviour
         return t;
     }
 
-    void EnsureTrailRT()
-    {
-        if (_Trail != null && _Trail.IsCreated() && _Trail.width == resolution.x && _Trail.height == resolution.y) return;
-        if (_Trail != null) _Trail.Release();
-        _Trail = new RenderTexture(resolution.x, resolution.y, 0, RenderTextureFormat.RFloat)
-        { enableRandomWrite=false, wrapMode=TextureWrapMode.Repeat, filterMode=FilterMode.Bilinear };
+    void EnsureTrailRTs()
+{
+    bool need = true;
+    if (_TrailA != null && _TrailA.IsCreated() && _TrailB != null && _TrailB.IsCreated()
+        && _TrailA.width == resolution.x && _TrailA.height == resolution.y
+        && _TrailB.width == resolution.x && _TrailB.height == resolution.y) need = false;
+
+    if (!need) return;
+
+    if (_TrailA != null) _TrailA.Release();
+    if (_TrailB != null) _TrailB.Release();
+
+    _TrailA = new RenderTexture(resolution.x, resolution.y, 0, RenderTextureFormat.RFloat)
+    { enableRandomWrite=false, wrapMode=TextureWrapMode.Repeat, filterMode=FilterMode.Bilinear };
+    _TrailB = new RenderTexture(resolution.x, resolution.y, 0, RenderTextureFormat.RFloat)
+    { enableRandomWrite=false, wrapMode=TextureWrapMode.Repeat, filterMode=FilterMode.Bilinear };
+    _TrailA.Create(); _TrailB.Create();
+};
         _Trail.Create();
     }
 
@@ -233,19 +245,21 @@ public class LeniaSimulation : MonoBehaviour
         if (view != null && _dispMat != null) view.material = _dispMat;
 
         if (useTrail && _trailMat != null)
-        {
-            EnsureTrailRT();
-            _trailMat.SetFloat("_Decay", trailDecay);
-            _trailMat.SetFloat("_Boost", trailBoost);
-            _trailMat.SetTexture("_TrailTex", _Trail);
-            Graphics.Blit(_A, _Trail, _trailMat);
-        }
+{
+    EnsureTrailRTs();
+    // Read previous trail from A, write into B
+    _trailMat.SetFloat("_Decay", trailDecay);
+    _trailMat.SetFloat("_Boost", trailBoost);
+    _trailMat.SetTexture("_TrailTex", _TrailA);
+    Graphics.Blit(_A, _TrailB, _trailMat);
+    // swap A <-> B
+    var tt = _TrailA; _TrailA = _TrailB; _TrailB = tt;
+}
 
         if (_dispMat != null)
         {
             _dispMat.SetTexture("_MainTex", _A);
-            _dispMat.SetTexture("_TrailTex", _Trail);
-            _dispMat.SetTexture("_PaletteTex", _paletteTex);
+            _dispMat.SetTexture("_TrailTex", _TrailA);_dispMat.SetTexture("_PaletteTex", _paletteTex);
             _dispMat.SetFloat("_Exposure", dispExposure);
             _dispMat.SetFloat("_Gamma", dispGamma);
             _dispMat.SetFloat("_PaletteOffset", paletteOffset);
@@ -399,4 +413,5 @@ public class LeniaSimulation : MonoBehaviour
         }
     }
 }
+
 
