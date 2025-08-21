@@ -6,7 +6,7 @@ using UnityEngine.InputSystem;
 [DefaultExecutionOrder(80)]
 public class LeniaPainter : MonoBehaviour
 {
-    public LeniaSimulator sim;
+    public LeniaSimulation sim;
     [Range(0.002f, 0.2f)] public float brushRadiusUV = 0.03f;
     [Range(0f,1f)] public float hardness = 0.5f;
     [Range(0f,1f)] public float opacity  = 1.0f;
@@ -16,9 +16,9 @@ public class LeniaPainter : MonoBehaviour
     void Start(){
         if(!sim){
             #if UNITY_2023_1_OR_NEWER
-            sim = Object.FindFirstObjectByType<LeniaSimulator>();
+            sim = Object.FindFirstObjectByType<LeniaSimulation>();
             #else
-            sim = Object.FindFirstObjectByType<LeniaSimulator>();
+            sim = Object.FindFirstObjectByType<LeniaSimulation>();
             #endif
         }
         var sh = Shader.Find("Hidden/BrushBlit");
@@ -100,4 +100,5 @@ public class LeniaPainter : MonoBehaviour
         RenderTexture.ReleaseTemporary(tmp);
     }
 }
+
 

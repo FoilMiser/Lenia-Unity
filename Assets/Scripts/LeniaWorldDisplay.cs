@@ -3,7 +3,7 @@
 [RequireComponent(typeof(MeshRenderer))]
 public class LeniaWorldDisplay : MonoBehaviour
 {
-    public LeniaSimulator sim;
+    public LeniaSimulation sim;
     public Camera targetCamera;
     public bool fitToCamera = true;
     public float exposure = 1.8f;
@@ -13,9 +13,9 @@ public class LeniaWorldDisplay : MonoBehaviour
 
     void Awake(){
 #if UNITY_2023_1_OR_NEWER
-        if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
+        if (!sim) sim = FindFirstObjectByType<LeniaSimulation>();
 #else
-        if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
+        if (!sim) sim = FindFirstObjectByType<LeniaSimulation>();
 #endif
         if (!targetCamera) targetCamera = Camera.main;
     }
@@ -71,4 +71,5 @@ public class LeniaWorldDisplay : MonoBehaviour
         return t;
     }
 }
+
 

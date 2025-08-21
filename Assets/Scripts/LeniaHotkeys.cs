@@ -7,15 +7,15 @@ using System.Reflection;
 
 public class LeniaHotkeys : MonoBehaviour
 {
-    public LeniaSimulator sim;        // prefer direct simulator calls (original behavior)
+    public LeniaSimulation sim;        // prefer direct simulator calls (original behavior)
     public LeniaSeeder seeder;        // fallback only if sim lacks a method
 
     void Awake(){
 #if UNITY_2023_1_OR_NEWER
-        if (!sim)    sim    = FindFirstObjectByType<LeniaSimulator>();
+        if (!sim)    sim    = FindFirstObjectByType<LeniaSimulation>();
         if (!seeder) seeder = FindFirstObjectByType<LeniaSeeder>();
 #else
-        if (!sim)    sim    = FindObjectOfType<LeniaSimulator>();
+        if (!sim)    sim    = FindObjectOfType<LeniaSimulation>();
         if (!seeder) seeder = FindObjectOfType<LeniaSeeder>();
 #endif
     }
@@ -51,3 +51,4 @@ public class LeniaHotkeys : MonoBehaviour
 #endif
     }
 }
+

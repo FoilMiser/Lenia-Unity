@@ -4,7 +4,7 @@ using UnityEngine.UI;
 [RequireComponent(typeof(RawImage))]
 public class LeniaDisplay : MonoBehaviour
 {
-    public LeniaSimulator sim;
+    public LeniaSimulation sim;
     Material _mat; Texture2D _ramp; RawImage _ri;
 
     void Awake()
@@ -36,4 +36,5 @@ public class LeniaDisplay : MonoBehaviour
         t.Apply(false); t.wrapMode = TextureWrapMode.Clamp; return t;
     }
 }
+
 

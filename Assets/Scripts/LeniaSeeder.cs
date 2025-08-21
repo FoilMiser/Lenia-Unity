@@ -8,7 +8,7 @@ public enum SeedMode { None, Noise, Clusters, Movers, Orbium }
 [DisallowMultipleComponent]
 public class LeniaSeeder : MonoBehaviour
 {
-    public LeniaSimulator sim;
+    public LeniaSimulation sim;
 
     [Header("When to seed")]
     public bool autoSeedOnPlay = true;
@@ -36,9 +36,9 @@ public class LeniaSeeder : MonoBehaviour
 
     void Awake(){
 #if UNITY_2023_1_OR_NEWER
-        if (!sim) sim = FindFirstObjectByType<LeniaSimulator>();
+        if (!sim) sim = FindFirstObjectByType<LeniaSimulation>();
 #else
-        if (!sim) sim = FindObjectOfType<LeniaSimulator>();
+        if (!sim) sim = FindObjectOfType<LeniaSimulation>();
 #endif
     }
 
@@ -47,7 +47,7 @@ public class LeniaSeeder : MonoBehaviour
     }
 
     IEnumerator DelayedSeed(){
-        // wait one frame so LeniaSimulator can build textures/kernels
+        // wait one frame so LeniaSimulation can build textures/kernels
         yield return null;
         // ensure params are applied before seeding if the simulator exposes it
         Call("ApplyParams");
@@ -122,9 +122,9 @@ public class LeniaSeeder : MonoBehaviour
     public void Clear(){
         if (!sim){
 #if UNITY_2023_1_OR_NEWER
-            sim = FindFirstObjectByType<LeniaSimulator>();
+            sim = FindFirstObjectByType<LeniaSimulation>();
 #else
-            sim = FindObjectOfType<LeniaSimulator>();
+            sim = FindObjectOfType<LeniaSimulation>();
 #endif
         }
         if (!Call("Clear")) Call("ClearState");
@@ -185,3 +185,4 @@ public class LeniaSeeder : MonoBehaviour
     public void SeedOrbium(float r){ orbiumRadius = r; mode = SeedMode.Orbium; SeedOnce(); }
     public void SeedOrbium(float r, float a){ orbiumRadius = r; orbiumAmplitude = a; mode = SeedMode.Orbium; SeedOnce(); }
 }
+

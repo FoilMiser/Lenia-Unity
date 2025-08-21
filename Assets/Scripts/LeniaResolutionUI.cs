@@ -2,13 +2,13 @@
 [DefaultExecutionOrder(55)]
 public class LeniaResolutionUI : MonoBehaviour
 {
-    public LeniaSimulator sim;
+    public LeniaSimulation sim;
     int[] sizes = new[]{512,1024,2048};
     void Start(){ if(!sim){
 #if UNITY_2023_1_OR_NEWER
-        sim = Object.FindFirstObjectByType<LeniaSimulator>();
+        sim = Object.FindFirstObjectByType<LeniaSimulation>();
 #else
-        sim = Object.FindFirstObjectByType<LeniaSimulator>();
+        sim = Object.FindFirstObjectByType<LeniaSimulation>();
 #endif
     } }
     void OnGUI(){
@@ -22,4 +22,5 @@ public class LeniaResolutionUI : MonoBehaviour
         if(GUI.Button(new Rect(r.x+76, r.y, 64, 24), "+")) sim.SetStepsPerFrame(sim.stepsPerFrame+1);
     }
 }
+
 

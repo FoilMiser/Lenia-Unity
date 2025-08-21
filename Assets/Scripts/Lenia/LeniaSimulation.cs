@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 
 public class LeniaSimulation : MonoBehaviour
@@ -111,4 +111,6 @@ public class LeniaSimulation : MonoBehaviour
         leniaCS.SetTexture(_kStep, "_StateOut", _B);
         if (view) view.texture = _A;
     }
+    public RenderTexture CurrentTexture => _A;
 }
+
