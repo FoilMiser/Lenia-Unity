@@ -76,8 +76,7 @@ public class LeniaSimulation : MonoBehaviour
     }
 
     // ================== Core sim ==================
-    public void ApplyProfiles()
-    {
+    public void ApplyProfiles(){ if (!EnsureKernel()) return;
         EnsureDefaults();
         EnsureRTs();
 
@@ -103,8 +102,7 @@ public class LeniaSimulation : MonoBehaviour
         UpdateGlow();
     }
 
-    public void Step()
-    {
+    public void Step(){ if (!EnsureKernel()) return;
         if (leniaCS == null || _kStep < 0) return;
         leniaCS.Dispatch(_kStep, Mathf.CeilToInt(resolution.x/8f), Mathf.CeilToInt(resolution.y/8f), 1);
         var t = _A; _A = _B; _B = t;  // swap
@@ -419,5 +417,16 @@ public class LeniaSimulation : MonoBehaviour
 
         kernelProfile.Invalidate();
         ApplyProfiles();
+    }
+
+    bool EnsureKernel()
+    {
+        if (leniaCS == null) return false;
+        if (_kStep < 0)
+        {
+            try { _kStep = leniaCS.FindKernel("Step"); }
+            catch (System.Exception e) { Debug.LogError("Lenia kernel 'Step' not found: " + e.Message); return false; }
+        }
+        return true;
     }
 }
