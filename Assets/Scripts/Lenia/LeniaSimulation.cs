@@ -26,7 +26,7 @@ public class LeniaSimulation : MonoBehaviour
         _kStep = leniaCS.FindKernel("Step");
         EnsureRTs();
         EnsureView();
-        Reseed();
+        ReseedMuCentered();
         ApplyProfiles();
     }
 
@@ -226,5 +226,32 @@ public class LeniaSimulation : MonoBehaviour
             }
         }
     }
+
+    // Seed around the current growth.mu so avg density ~ mu (helps avoid immediate extinction)
+    public void ReseedMuCentered(int? seed = null, float noise = 0.06f)
+    {
+        EnsureRTs();
+        float target = growth ? Mathf.Clamp01(growth.mu) : 0.15f;
+        var rnd = new System.Random(seed ?? (int)System.DateTime.Now.Ticks);
+
+        var prev = RenderTexture.active;
+        RenderTexture.active = _A;
+
+        Texture2D tmp = new Texture2D(resolution.x, resolution.y, TextureFormat.RFloat, false, true);
+        var px = new Color[resolution.x * resolution.y];
+        for (int i = 0; i < px.Length; i++)
+        {
+            // gaussian-ish noise around mu
+            float n = (float)((rnd.NextDouble() + rnd.NextDouble() + rnd.NextDouble())/3.0); // ~[0..1], bell-shaped
+            float v = Mathf.Clamp01(target + (n - 0.5f) * 2f * noise);
+            px[i] = new Color(v,0,0,0);
+        }
+        tmp.SetPixels(px); tmp.Apply();
+        Graphics.Blit(tmp, _A);
+        Object.DestroyImmediate(tmp);
+        RenderTexture.active = prev;
+        if (view) view.texture = _A;
+    }
 }
+
 
