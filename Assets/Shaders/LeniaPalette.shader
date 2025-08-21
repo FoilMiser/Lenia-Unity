@@ -15,6 +15,10 @@
         _UseTrail("Use Trail", Float) = 1
         _PaletteTex("Palette", 2D) = "white" {}
     }
+        _GlowTex("GlowTex", 2D) = "black" {}
+        _UseGlow("Use Glow", Float) = 1
+        _GlowStrength("Glow Strength", Float) = 0.7
+        _GlowTint("Glow Tint", Color) = (1,0.8,0.4,1)
     SubShader{
         Tags{ "RenderType"="Opaque" }
         ZWrite Off Cull Off ZTest Always
@@ -23,9 +27,9 @@
             #pragma vertex vert
             #pragma fragment frag
             #include "UnityCG.cginc"
-            sampler2D _MainTex, _TrailTex, _PaletteTex;
+            sampler2D _MainTex, _TrailTex, _PaletteTex, _GlowTex;
             float4 _MainTex_TexelSize;
-            float _Exposure,_Gamma,_PaletteOffset,_PaletteScale,_EdgeStrength,_EdgeThreshold,_TrailWeight,_UseEdges,_UseTrail; float _TrailMode;
+            float _Exposure,_Gamma,_PaletteOffset,_PaletteScale,_EdgeStrength,_EdgeThreshold,_TrailWeight,_UseEdges,_UseTrail; float _UseGlow, _GlowStrength; float4 _GlowTint; float _TrailMode;
             float4 _TrailTint;
 
             struct v2f { float4 pos:SV_POSITION; float2 uv:TEXCOORD0; };
@@ -74,10 +78,17 @@
         col = lerp(col, tint, t);
     }
 }
+                // composite glow by SCREEN so it shows over bright palette
+                if (_UseGlow > 0.5){
+                    float g = tex2D(_GlowTex, i.uv).r * _GlowStrength;
+                    float3 gt = saturate(_GlowTint.rgb) * saturate(g);
+                    col = 1.0 - (1.0 - col) * (1.0 - gt);
+                }
                 return float4(col,1);
             }
             ENDHLSL
         }
     }
 }
+
 
