@@ -5,13 +5,13 @@ using UnityEngine.InputSystem;
 [DefaultExecutionOrder(60)]
 public class LeniaPresets : MonoBehaviour
 {
-    public LeniaSimulator sim; public LeniaSeeder seeder;
+    public LeniaSimulation sim; public LeniaSeeder seeder;
     void Start(){
         if(!sim){
 #if UNITY_2023_1_OR_NEWER
-            sim = Object.FindFirstObjectByType<LeniaSimulator>();
+            sim = Object.FindFirstObjectByType<LeniaSimulation>();
 #else
-            sim = Object.FindFirstObjectByType<LeniaSimulator>();
+            sim = Object.FindFirstObjectByType<LeniaSimulation>();
 #endif
         }
         if(!seeder){
@@ -77,4 +77,5 @@ public class LeniaPresets : MonoBehaviour
         if(seeder){ seeder.Clear(0f); seeder.SeedFewBlobs(90, 0.006f, 0.015f, 1f); }
     }
 }
+
 
