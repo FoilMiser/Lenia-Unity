@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 [CreateAssetMenu(menuName="Lenia/Kernel Profile")]
 public class LeniaKernelProfile : ScriptableObject
@@ -61,4 +61,16 @@ public class LeniaKernelProfile : ScriptableObject
         _kernelTex.Apply(false, true);
         return _kernelTex;
     }
+
+    public void EnsureRingCount(int n)
+    {
+        ringCount = Mathf.Max(1, n);
+        System.Array.Resize(ref means,   ringCount);
+        System.Array.Resize(ref peaks,   ringCount);
+        System.Array.Resize(ref stddevs, ringCount);
+        Invalidate();
+    }
+
+    public void Invalidate() { _kernelTex = null; }
 }
+
