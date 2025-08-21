@@ -1,0 +1,66 @@
+﻿Shader "Unlit/LeniaPalette"
+{
+    Properties{
+        _MainTex("State", 2D) = "black" {}
+        _TrailTex("Trail", 2D) = "black" {}
+        _Exposure("Exposure", Float) = 12.0
+        _Gamma("Gamma", Float) = 1.2
+        _PaletteOffset("Palette Offset", Float) = 0.0
+        _PaletteScale("Palette Scale", Float) = 1.0
+        _EdgeStrength("Edge Strength", Float) = 0.8
+        _EdgeThreshold("Edge Threshold", Float) = 0.015
+        _TrailWeight("Trail Weight", Float) = 0.6
+        _TrailTint("Trail Tint", Color) = (1,0.85,0.4,1)
+        _UseEdges("Use Edges", Float) = 1
+        _UseTrail("Use Trail", Float) = 1
+        _PaletteTex("Palette", 2D) = "white" {}
+    }
+    SubShader{
+        Tags{ "RenderType"="Opaque" }
+        ZWrite Off Cull Off ZTest Always
+        Pass{
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #include "UnityCG.cginc"
+            sampler2D _MainTex, _TrailTex, _PaletteTex;
+            float4 _MainTex_TexelSize;
+            float _Exposure,_Gamma,_PaletteOffset,_PaletteScale,_EdgeStrength,_EdgeThreshold,_TrailWeight,_UseEdges,_UseTrail;
+            float4 _TrailTint;
+
+            struct v2f { float4 pos:SV_POSITION; float2 uv:TEXCOORD0; };
+            v2f vert(appdata_full v){ v2f o; o.pos=UnityObjectToClipPos(v.vertex); o.uv=v.texcoord; return o; }
+
+            float3 palette(float v){
+                v = saturate(v*_PaletteScale + _PaletteOffset);
+                return tex2D(_PaletteTex, float2(v,0.5)).rgb;
+            }
+
+            fixed4 frag(v2f i):SV_Target{
+                float v = tex2D(_MainTex, i.uv).r;
+                float vv = pow(saturate(v * _Exposure), max(1e-3,_Gamma));
+                float3 col = palette(vv);
+
+                if (_UseEdges > 0.5){
+                    float2 px = _MainTex_TexelSize.xy;
+                    float vl = tex2D(_MainTex, i.uv - float2(px.x,0)).r;
+                    float vr = tex2D(_MainTex, i.uv + float2(px.x,0)).r;
+                    float vu = tex2D(_MainTex, i.uv + float2(0,px.y)).r;
+                    float vd = tex2D(_MainTex, i.uv - float2(0,px.y)).r;
+                    float gx = abs(vr - vl);
+                    float gy = abs(vu - vd);
+                    float g  = sqrt(gx*gx + gy*gy);
+                    float edge = smoothstep(_EdgeThreshold*0.5, _EdgeThreshold, g) * _EdgeStrength;
+                    col = saturate(col + edge.xxx);
+                }
+
+                if (_UseTrail > 0.5){
+                    float t = tex2D(_TrailTex, i.uv).r;
+                    col = saturate(col + _TrailTint.rgb * (t * _TrailWeight));
+                }
+                return float4(col,1);
+            }
+            ENDHLSL
+        }
+    }
+}

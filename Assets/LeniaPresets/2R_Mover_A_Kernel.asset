@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25dacf2e55848634e9c94e115f4eb5fc, type: 3}
+  m_Name: 2R_Mover_A_Kernel
+  m_EditorClassIdentifier: Assembly-CSharp::LeniaKernelProfile
+  radius: 28
+  ringCount: 2
+  means:
+  - 0.35
+  - 0.62
+  peaks:
+  - 1
+  - 0.65
+  stddevs:
+  - 0.055
+  - 0.075

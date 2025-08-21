@@ -11,8 +11,24 @@ public class LeniaSimulation : MonoBehaviour
     public LeniaKernelProfile kernelProfile;
     public LeniaGrowthProfile growth;
 
-    [Header("Runtime")]
-    public ComputeShader leniaCS;
+    [Header(""Runtime"")]
+[Header(""Display Settings"")]
+public float dispExposure = 12f;
+public float dispGamma = 1.2f;
+public float paletteOffset = 0f;
+public float paletteScale = 1f;
+public bool  useEdges = true;
+public float edgeStrength = 0.8f;
+public float edgeThreshold = 0.015f;
+public bool  useTrail = true;
+public float trailDecay = 0.965f;
+public float trailBoost = 1.0f;
+public float trailWeight = 0.6f;
+public Color trailTint = new Color(1f,0.85f,0.4f,1f);
+
+Material _dispMat, _trailMat;
+RenderTexture _Trail;
+Texture2D _paletteTex;    public ComputeShader leniaCS;
     [Range(0f,1f)] public float seedFill = 0.15f;
     public bool autoRun = true;
     public int stepsPerFrame = 1;
@@ -59,7 +75,7 @@ public class LeniaSimulation : MonoBehaviour
             view = imgGO.GetComponent<RawImage>();
             imgGO.GetComponent<RectTransform>().sizeDelta = new Vector2(1024, 1024);
         }
-        view.texture = _A; ApplyDisplayMaterialIfMissing();
+        view.texture = _A;  UpdateTrailAndMaterial(); ApplyDisplayMaterialIfMissing();
     }
 
     public void ApplyProfiles()
@@ -108,7 +124,7 @@ public class LeniaSimulation : MonoBehaviour
         var t = _A; _A = _B; _B = t;
         leniaCS.SetTexture(_kStep, "_StateIn", _A);
         leniaCS.SetTexture(_kStep, "_StateOut", _B);
-        if (view) view.texture = _A; ApplyDisplayMaterialIfMissing();
+        if (view) view.texture = _A;  UpdateTrailAndMaterial(); ApplyDisplayMaterialIfMissing();
     }
     public RenderTexture CurrentTexture => _A;
     // --- Compatibility shims for legacy UI scripts ---
@@ -251,7 +267,68 @@ public class LeniaSimulation : MonoBehaviour
         Object.DestroyImmediate(tmp);
         RenderTexture.active = prev;
         if (view) view.texture = _A;
+     UpdateTrailAndMaterial(); }
+
+    Texture2D BuildViridisPalette()
+    {
+        // 256x1 viridis-like palette
+        var t = new Texture2D(256,1, TextureFormat.RGBA32, false, true);
+        t.wrapMode = TextureWrapMode.Clamp; t.filterMode = FilterMode.Bilinear;
+        Color[] px = new Color[256];
+        for (int i=0;i<256;i++){
+            float x = i/255f; // simple approx (nice enough for display)
+            float r = Mathf.Clamp01(1.5f*x - 0.5f*x*x);
+            float g = Mathf.Clamp01(1.2f*x*(1.0f-x)*3.2f + 0.1f + 0.6f*x);
+            float b = Mathf.Clamp01(1.0f - x*0.7f + 0.2f*(1.0f-x));
+            px[i] = new Color(r,g,b,1);
+        }
+        t.SetPixels(px); t.Apply(false, true);
+        return t;
+    }
+
+    void EnsureTrailRT()
+    {
+        if (_Trail != null && _Trail.IsCreated() && _Trail.width == resolution.x && _Trail.height == resolution.y) return;
+        if (_Trail != null) _Trail.Release();
+        _Trail = new RenderTexture(resolution.x, resolution.y, 0, RenderTextureFormat.RFloat)
+        { enableRandomWrite=false, wrapMode=TextureWrapMode.Repeat, filterMode=FilterMode.Bilinear };
+        _Trail.Create();
+    }
+
+    void UpdateTrailAndMaterial()
+    {
+        if (_dispMat == null){ var sh = Shader.Find("Unlit/LeniaPalette"); if (sh) _dispMat = new Material(sh); }
+        if (_trailMat== null){ var sh = Shader.Find("Hidden/LeniaTrailUpdate"); if (sh) _trailMat = new Material(sh); }
+        if (_paletteTex == null) _paletteTex = BuildViridisPalette();
+        if (view != null && view.material == null && _dispMat != null) view.material = _dispMat;
+
+        // Update trail if enabled
+        if (useTrail && _trailMat != null)
+        {
+            EnsureTrailRT();
+            _trailMat.SetFloat("_Decay", trailDecay);
+            _trailMat.SetFloat("_Boost", trailBoost);
+            _trailMat.SetTexture("_TrailTex", _Trail);
+            Graphics.Blit(_A, _Trail, _trailMat);
+        }
+
+        // Push display params
+        if (_dispMat != null)
+        {
+            _dispMat.SetTexture("_MainTex", _A);
+            _dispMat.SetTexture("_TrailTex", _Trail);
+            _dispMat.SetTexture("_PaletteTex", _paletteTex);
+            _dispMat.SetFloat("_Exposure", dispExposure);
+            _dispMat.SetFloat("_Gamma", dispGamma);
+            _dispMat.SetFloat("_PaletteOffset", paletteOffset);
+            _dispMat.SetFloat("_PaletteScale", paletteScale);
+            _dispMat.SetFloat("_EdgeStrength", edgeStrength);
+            _dispMat.SetFloat("_EdgeThreshold", edgeThreshold);
+            _dispMat.SetFloat("_UseEdges", useEdges ? 1f : 0f);
+            _dispMat.SetFloat("_UseTrail", useTrail ? 1f : 0f);
+            _dispMat.SetFloat("_TrailWeight", trailWeight);
+            _dispMat.SetColor("_TrailTint", trailTint);
+        }
     }
 }
-
 
