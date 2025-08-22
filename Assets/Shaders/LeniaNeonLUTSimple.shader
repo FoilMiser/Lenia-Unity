@@ -1,0 +1,55 @@
+﻿Shader "Hidden/Lenia/NeonLUTSimple" {
+  Properties {
+    _MainTex ("Main", 2D) = "white" {}
+    _LUT     ("Palette", 2D) = "white" {}
+    _Exposure("Exposure", Float) = 6
+    _Gamma   ("Gamma", Float) = 1.05
+    _Edge    ("Edge", Float) = 0.55
+    _Thresh  ("Thresh", Float) = 0.006
+  }
+  SubShader {
+    Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" }
+    Blend SrcAlpha OneMinusSrcAlpha
+    Cull Off ZWrite Off ZTest Always
+
+    Pass {
+      CGPROGRAM
+      #pragma vertex vert
+      #pragma fragment frag
+      #include "UnityCG.cginc"
+      sampler2D _MainTex; float4 _MainTex_TexelSize;
+      sampler2D _LUT;
+      float _Exposure, _Gamma, _Edge, _Thresh;
+
+      struct app { float4 pos:POSITION; float2 uv:TEXCOORD0; };
+      struct v2f { float4 pos:SV_Position; float2 uv:TEXCOORD0; };
+      v2f vert(app i){ v2f o; o.pos = UnityObjectToClipPos(i.pos); o.uv = i.uv; return o; }
+
+      float3 ACES(float3 x){
+        const float a=2.51, b=0.03, c=2.43, d=0.59, e=0.14;
+        return saturate((x*(a*x+b))/(x*(c*x+d)+e));
+      }
+
+      fixed4 frag(v2f i):SV_Target{
+        float v = tex2D(_MainTex, i.uv).r;
+
+        // Gradient magnitude for subtle edge pop
+        float2 px = _MainTex_TexelSize.xy;
+        float vl = tex2D(_MainTex, i.uv + float2(-px.x, 0)).r;
+        float vr = tex2D(_MainTex, i.uv + float2( px.x, 0)).r;
+        float vu = tex2D(_MainTex, i.uv + float2(0,  px.y)).r;
+        float vd = tex2D(_MainTex, i.uv + float2(0, -px.y)).r;
+        float g = sqrt(max(0,(vr-vl)*(vr-vl)+(vu-vd)*(vu-vd)));
+        float edge = smoothstep(_Thresh, _Thresh*4, g) * _Edge;
+
+        float3 col = tex2D(_LUT, float2(v,0.5)).rgb;
+        col *= _Exposure;
+        col = pow(col, 1.0/_Gamma);
+        col += edge.xxx;
+        col = ACES(col);
+        return fixed4(col,1);
+      }
+      ENDCG
+    }
+  }
+}
