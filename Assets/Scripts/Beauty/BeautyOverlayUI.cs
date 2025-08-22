@@ -10,6 +10,10 @@ namespace LeniaBeauty {
     static void Boot(){ var go=new GameObject("BeautyOverlayUI"); Object.DontDestroyOnLoad(go); go.AddComponent<BeautyOverlayUI>(); }
 
     void Start(){
+      // 0) Hide any earlier overlay/canvas if it exists
+      var oldA = GameObject.Find("BeautyCanvas");     if(oldA) oldA.SetActive(false);
+      var oldB = GameObject.Find("BeautyCanvasV2");   if(oldB) oldB.SetActive(false);
+
       // 1) Find sim texture from existing Lenia RawImage
       var ris = GameObject.FindObjectsByType<RawImage>(FindObjectsInactive.Include, FindObjectsSortMode.None);
       var source = ris.FirstOrDefault(r=> r && r.gameObject.name=="LeniaView") ?? ris.FirstOrDefault(r=> r && r.texture);
@@ -20,7 +24,7 @@ namespace LeniaBeauty {
         for(int i=0;i<pc;i++){
           if(srcSh.GetPropertyType(i)!=UnityEngine.Rendering.ShaderPropertyType.Texture) continue;
           string nm = srcSh.GetPropertyName(i).ToLowerInvariant();
-          if(nm.Contains("palette")||nm.contains("lut")||nm.Contains("grad")||nm.Contains("trail")||nm.Contains("glow")) continue;
+          if(nm.Contains("palette")||nm.Contains("lut")||nm.Contains("grad")||nm.Contains("trail")||nm.Contains("glow")) continue;
           var t=source.material.GetTexture(srcSh.GetPropertyNameId(i)); if(t){ src=t; break; }
         }
       }
@@ -46,7 +50,7 @@ namespace LeniaBeauty {
       ApplyPalette(0); // Neon default
       PushParams();
 
-      var old = GameObject.Find("LeniaViewCanvas"); if(old) old.SetActive(false);
+      var oldLenia = GameObject.Find("LeniaViewCanvas"); if(oldLenia) oldLenia.SetActive(false);
       Debug.Log($"[Beauty] UI overlay active. Source {src.width}x{src.height}, shader={mat.shader.name}");
     }
 
@@ -57,21 +61,19 @@ namespace LeniaBeauty {
       GUI.BeginGroup(r, GUI.skin.window);
       GUILayout.Label("Lenia Display — Palette & Tone");
       GUILayout.BeginHorizontal();
-      if(GUILayout.Button("Neon", GUILayout.Width(110))) ApplyPalette(0);
+      if(GUILayout.Button("Neon",   GUILayout.Width(110))) ApplyPalette(0);
       if(GUILayout.Button("Cobalt", GUILayout.Width(110))) ApplyPalette(1);
       if(GUILayout.Button("Fire & Ice", GUILayout.Width(110))) ApplyPalette(2);
       GUILayout.EndHorizontal();
 
       GUILayout.Space(6);
-      min = SliderRow("Min", 0.00f, 0.50f, min);
-      max = SliderRow("Max", 0.50f, 1.00f, max);
-      if(max < min + 0.02f) max = min + 0.02f;
+      min      = SliderRow("Min",       0.00f, 0.50f, min);
+      max      = SliderRow("Max",       0.50f, 1.00f, max); if(max < min + 0.02f) max = min + 0.02f;
+      exposure = SliderRow("Exposure",  2.00f, 7.00f, exposure);
+      gamma    = SliderRow("Gamma",     0.85f, 1.30f, gamma);
+      hiClamp  = SliderRow("Highlight", 0.80f, 0.98f, hiClamp);
 
-      exposure = SliderRow("Exposure", 2.0f, 7.0f, exposure);
-      gamma    = SliderRow("Gamma",    0.85f, 1.30f, gamma);
-      hiClamp  = SliderRow("Highlight",0.80f, 0.98f, hiClamp);
-      GUILayout.EndVertical(); GUI.EndGroup();
-
+      GUI.EndGroup();
       PushParams();
     }
 
@@ -79,7 +81,7 @@ namespace LeniaBeauty {
       GUILayout.BeginHorizontal();
       GUILayout.Label(label, GUILayout.Width(80));
       v = GUILayout.HorizontalSlider(v, a, b);
-      GUILayout.Label(v.ToString("0.00"), GUILayout.Width(40));
+      GUILayout.Label(v.ToString("0.00"), GUILayout.Width(44));
       GUILayout.EndHorizontal();
       return v;
     }
