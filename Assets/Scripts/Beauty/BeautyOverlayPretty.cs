@@ -7,7 +7,7 @@ namespace LeniaBeauty {
     int idLUT, idMin, idMax, idExp, idGam, idEdge, idThr, idW, idTint;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    static void Boot(){ var go=new GameObject("BeautyOverlayPretty"); DontDestroyOnLoad(go); go.AddComponent<BeautyOverlayPretty>(); }
+    static void Boot(){ var go=new GameObject("BeautyOverlayPretty"); Object.DontDestroyOnLoad(go); go.AddComponent<BeautyOverlayPretty>(); }
 
     void Start(){
       // 1) find the real sim texture from the existing Lenia RawImage
@@ -15,11 +15,18 @@ namespace LeniaBeauty {
       var source = ris.FirstOrDefault(r=> r && r.gameObject.name=="LeniaView") ?? ris.FirstOrDefault(r=> r && r.texture);
       if(source==null){ Debug.LogWarning("[Beauty] No RawImage source found."); return; }
 
-      src = source.texture; if(src==null && source.material){ var sh=source.material.shader; int pc=sh?sh.GetPropertyCount():0;
-        for(int i=0;i<pc;i++){ if(sh.GetPropertyType(i)!=UnityEngine.Rendering.ShaderPropertyType.Texture) continue;
-          var nm=sh.GetPropertyName(i).ToLowerInvariant();
+      src = source.texture;
+      if(src==null && source.material){
+        Shader srcSh = source.material.shader;
+        int pc = (srcSh != null) ? srcSh.GetPropertyCount() : 0;
+        for(int i=0;i<pc;i++){
+          if(srcSh.GetPropertyType(i)!=UnityEngine.Rendering.ShaderPropertyType.Texture) continue;
+          string nm = srcSh.GetPropertyName(i).ToLowerInvariant();
           if(nm.Contains("palette")||nm.Contains("lut")||nm.Contains("grad")||nm.Contains("trail")||nm.Contains("glow")) continue;
-          var t=source.material.GetTexture(sh.GetPropertyNameId(i)); if(t){ src=t; break; } } }
+          var t = source.material.GetTexture(srcSh.GetPropertyNameId(i));
+          if(t!=null){ src=t; break; }
+        }
+      }
       if(src==null){ Debug.LogWarning("[Beauty] Could not locate sim texture."); return; }
 
       // 2) Build overlay canvas on top
@@ -29,8 +36,8 @@ namespace LeniaBeauty {
       var rt=overlay.rectTransform; rt.anchorMin=Vector2.zero; rt.anchorMax=Vector2.one; rt.offsetMin=rt.offsetMax=Vector2.zero;
 
       // 3) Material using new pretty shader
-      var sh=Shader.Find("Hidden/Lenia/NeonPretty"); if(!sh){ Debug.LogError("[Beauty] Pretty shader not found."); return; }
-      mat=new Material(sh); overlay.material=mat; overlay.texture=src; mat.mainTexture=src;
+      var prettySh=Shader.Find("Hidden/Lenia/NeonPretty"); if(!prettySh){ Debug.LogError("[Beauty] Pretty shader not found."); return; }
+      mat=new Material(prettySh); overlay.material=mat; overlay.texture=src; mat.mainTexture=src;
 
       idLUT=Shader.PropertyToID("_LUT"); idMin=Shader.PropertyToID("_Min"); idMax=Shader.PropertyToID("_Max");
       idExp=Shader.PropertyToID("_Exposure"); idGam=Shader.PropertyToID("_Gamma");
@@ -46,11 +53,11 @@ namespace LeniaBeauty {
     }
 
     void Update(){
-      // Hotkeys: palette swap
-      if(Input.GetKeyDown(KeyCode.Alpha1)) ApplyPalette(0); // Neon
-      if(Input.GetKeyDown(KeyCode.Alpha2)) ApplyPalette(1); // Cobalt Porcelain
-      if(Input.GetKeyDown(KeyCode.Alpha3)) ApplyPalette(2); // Fire & Ice
-      // Min/Max tuning
+      // Palettes
+      if(Input.GetKeyDown(KeyCode.Alpha1)) ApplyPalette(0);
+      if(Input.GetKeyDown(KeyCode.Alpha2)) ApplyPalette(1);
+      if(Input.GetKeyDown(KeyCode.Alpha3)) ApplyPalette(2);
+      // Min/Max window
       if(Input.GetKeyDown(KeyCode.LeftBracket))  { min=Mathf.Clamp01(min-0.02f); PushParams(); }
       if(Input.GetKeyDown(KeyCode.RightBracket)) { min=Mathf.Clamp01(min+0.02f); PushParams(); }
       if(Input.GetKeyDown(KeyCode.Semicolon))    { max=Mathf.Clamp01(max-0.02f); PushParams(); }
@@ -70,10 +77,9 @@ namespace LeniaBeauty {
     }
 
     void ApplyPalette(int idx){
-      Texture2D lut;
-      Color edgeTint;
+      Texture2D lut; Color edgeTint;
       switch(idx){
-        default: // Neon Petri (deep navy → cyan → soft white → magenta, gentle)
+        default: // Neon Petri
           lut = MakeLUT(256, x=>{
             if(x<0.08f) return Color.Lerp(new Color(0.00f,0.00f,0.02f), new Color(0.00f,0.10f,0.18f), x/0.08f);
             if(x<0.35f) return Color.Lerp(new Color(0.00f,0.10f,0.18f), new Color(0.03f,0.85f,1f), (x-0.08f)/0.27f);
@@ -81,10 +87,10 @@ namespace LeniaBeauty {
             if(x<0.80f) return Color.Lerp(Color.white, new Color(0.95f,0.45f,1f), (x-0.55f)/0.25f);
             return Color.Lerp(new Color(0.95f,0.45f,1f), new Color(0.10f,0.00f,0.12f), (x-0.80f)/0.20f);
           });
-          edgeTint = new Color(0.95f,0.45f,1f,1f); // pink-lilac edges (not white)
+          edgeTint = new Color(0.95f,0.45f,1f,1f);
           min=0.24f; max=0.68f; exposure=5.6f; gamma=1.05f; edge=0.65f; edgeThr=0.005f; edgeW=0.02f;
           break;
-        case 1: // Cobalt Porcelain (navy→cobalt→porcelain white)
+        case 1: // Cobalt Porcelain
           lut = MakeLUT(256, x=>{
             if(x<0.10f) return Color.Lerp(new Color(0.02f,0.02f,0.06f), new Color(0.02f,0.06f,0.18f), x/0.10f);
             if(x<0.55f) return Color.Lerp(new Color(0.02f,0.06f,0.18f), new Color(0.12f,0.45f,1.0f), (x-0.10f)/0.45f);
@@ -93,7 +99,7 @@ namespace LeniaBeauty {
           edgeTint = new Color(0.90f,0.95f,1f,1f);
           min=0.22f; max=0.72f; exposure=5.2f; gamma=1.05f; edge=0.55f; edgeThr=0.0045f; edgeW=0.02f;
           break;
-        case 2: // Fire & Ice (teal → white → magenta)
+        case 2: // Fire & Ice
           lut = MakeLUT(256, x=>{
             if(x<0.35f) return Color.Lerp(new Color(0.02f,0.10f,0.12f), new Color(0.10f,0.95f,0.95f), x/0.35f);
             if(x<0.65f) return Color.Lerp(new Color(0.10f,0.95f,0.95f), Color.white, (x-0.35f)/0.30f);
