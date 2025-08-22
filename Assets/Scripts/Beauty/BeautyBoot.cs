@@ -1,1 +1,0 @@
-﻿namespace LeniaBeauty{ using UnityEngine; public class BeautyBoot:MonoBehaviour{ [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)] static void Boot(){ var go=new GameObject("BeautyBoot"); Object.DontDestroyOnLoad(go); go.AddComponent<BeautyViewSimple>(); } } }
