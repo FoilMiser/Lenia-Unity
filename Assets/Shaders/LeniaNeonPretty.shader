@@ -5,9 +5,10 @@
     _Min("Min",Float)=0.26
     _Max("Max",Float)=0.62
     _Contrast("Contrast",Float)=1.12
-    _Exposure("Exposure",Float)=4.9
+    _Exposure("Exposure",Float)=4.8
     _Gamma("Gamma",Float)=1.06
-    _HighlightClamp("Highlight Clamp",Float)=0.90
+    _HighlightClamp("Highlight Clamp",Float)=0.88
+    _WhitePoint("White Point",Float)=0.90
     _BackColor("Background",Color)=(0.02,0.04,0.10,1)
 
     _EdgeStrength("Edge Strength",Float)=0.55
@@ -17,7 +18,7 @@
     _EdgeCoarseW("Edge Coarse Weight",Float)=0.25
     _EdgeTint("Edge Tint",Color)=(0.95,0.45,1.0,1)
 
-    _ShadeAmt("Shading Mix",Float)=0.07
+    _ShadeAmt("Shading Mix",Float)=0.06
     _ShadeDepth("Shading Depth",Float)=3.0
   }
   SubShader{
@@ -30,7 +31,7 @@
       #include "UnityCG.cginc"
       sampler2D _MainTex; float4 _MainTex_TexelSize;
       sampler2D _LUT;
-      float _Min,_Max,_Contrast,_Exposure,_Gamma,_HighlightClamp; float4 _BackColor;
+      float _Min,_Max,_Contrast,_Exposure,_Gamma,_HighlightClamp,_WhitePoint; float4 _BackColor;
       float _EdgeStrength,_EdgeThreshold,_EdgeWidth,_EdgeFineW,_EdgeCoarseW; float4 _EdgeTint;
       float _ShadeAmt,_ShadeDepth;
 
@@ -49,10 +50,10 @@
         vn = pow(vn, _Contrast);
         vn = smoothstep(0.0, 1.0, vn);
 
-        // tiny dither before LUT (remove banding)
+        // tiny dither to kill banding
         vn = saturate(vn + (nrand(i.uv) - 0.5) / 1024.0);
 
-        // palette
+        // palette (we cap later with _WhitePoint)
         float3 col = tex2D(_LUT, float2(vn, 0.5)).rgb;
 
         // deep, consistent background
@@ -76,17 +77,20 @@
         float edgeMask = smoothstep(0.20, 0.80, vn);
         e *= edgeMask;
 
-        // multiplicative tint (prevents white rims)
+        // multiplicative edge tint (prevents white rims)
         float3 tint = normalize(_EdgeTint.rgb + 1e-3);
         col = lerp(col, saturate(col * tint), e * _EdgeStrength);
 
-        // tiny shape shading
+        // subtle normal lighting
         float3 n = normalize(float3(-dx1*_ShadeDepth, -dy1*_ShadeDepth, 1.0));
         float3 L = normalize(float3(0.4, 0.6, 0.7));
         float s  = saturate(dot(n,L));
-        col = lerp(col, col * (s*1.1), saturate(_ShadeAmt));
+        col = lerp(col, col * (s*1.05), saturate(_ShadeAmt));
 
-        // tone map + TRUE highlight clamp (no re-brighten)
+        // palette-wide white cap BEFORE tone map
+        col = min(col, _WhitePoint.xxx);
+
+        // tone map + hard highlight cap (no rebrighten)
         col *= _Exposure;
         col = pow(col, 1.0/_Gamma);
         col = ACES(col);
