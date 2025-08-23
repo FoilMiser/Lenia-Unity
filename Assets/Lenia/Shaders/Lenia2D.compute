@@ -1,0 +1,19 @@
+﻿#pragma kernel Step
+RWTexture2D<float> _Dst; Texture2D<float> _Src;
+int _Width,_Height,_R; float _Mu,_Sigma,_Dt;
+float Kernel(float r){return exp(-4.0*r*r);}
+float Growth(float u){float d=(u-_Mu);return 2.0*exp(-(d*d)/(2.0*_Sigma*_Sigma))-1.0;}
+[numthreads(8,8,1)]
+void Step(uint3 id:SV_DispatchThreadID){
+ if(id.x>=_Width||id.y>=_Height)return;
+ float a=_Src.Load(int3(id.xy,0));
+ int R=_R; float sum=0.0,wsum=0.0;
+ for(int dy=-R;dy<=R;dy++)for(int dx=-R;dx<=R;dx++){
+  int2 p=int2((int(id.x)+dx+_Width)%_Width,(int(id.y)+dy+_Height)%_Height);
+  float r=length(float2(dx,dy))/R;
+  if(r<=1.0){float w=Kernel(r); sum+=w*_Src.Load(int3(p,0)); wsum+=w;}
+ }
+ float u=wsum>0?sum/wsum:0.0; float g=Growth(u); float na=saturate(a+_Dt*g);
+ _Dst[id.xy]=na;
+}
+
