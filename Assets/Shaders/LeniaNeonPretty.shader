@@ -44,22 +44,22 @@
       fixed4 frag(v2f i):SV_Target{
         float v = tex2D(_MainTex, i.uv).r;
 
-        // normalize into display window + contrast + gentle sigmoid
+        // normalize + contrast + gentle sigmoid
         float vn = saturate( (v - _Min) / max(1e-5, _Max - _Min) );
         vn = pow(vn, _Contrast);
         vn = smoothstep(0.0, 1.0, vn);
 
-        // tiny blue-noise dither before LUT to kill banding
+        // tiny dither before LUT (remove banding)
         vn = saturate(vn + (nrand(i.uv) - 0.5) / 1024.0);
 
-        // palette sample
+        // palette
         float3 col = tex2D(_LUT, float2(vn, 0.5)).rgb;
 
-        // background lift (consistent deep background regardless of palette)
+        // deep, consistent background
         float backMix = smoothstep(0.02, 0.12, vn);
         col = lerp(_BackColor.rgb, col, backMix);
 
-        // dual-scale gradient edges, masked to mid-range so dark bg doesn't glow
+        // dual-scale edges, masked to mid-range
         float2 px = _MainTex_TexelSize.xy;
         float dx1 = tex2D(_MainTex, i.uv + float2( px.x,0)).r - tex2D(_MainTex, i.uv + float2(-px.x,0)).r;
         float dy1 = tex2D(_MainTex, i.uv + float2(0, px.y)).r - tex2D(_MainTex, i.uv + float2(0,-px.y)).r;
@@ -75,20 +75,22 @@
         float e  = saturate(_EdgeFineW*e1 + _EdgeCoarseW*e2);
         float edgeMask = smoothstep(0.20, 0.80, vn);
         e *= edgeMask;
-        col = lerp(col, _EdgeTint.rgb, e * _EdgeStrength);
 
-        // subtle shape shading from gradient normal (tiny)
+        // multiplicative tint (prevents white rims)
+        float3 tint = normalize(_EdgeTint.rgb + 1e-3);
+        col = lerp(col, saturate(col * tint), e * _EdgeStrength);
+
+        // tiny shape shading
         float3 n = normalize(float3(-dx1*_ShadeDepth, -dy1*_ShadeDepth, 1.0));
         float3 L = normalize(float3(0.4, 0.6, 0.7));
         float s  = saturate(dot(n,L));
         col = lerp(col, col * (s*1.1), saturate(_ShadeAmt));
 
-        // tone map + gentle white clamp
+        // tone map + TRUE highlight clamp (no re-brighten)
         col *= _Exposure;
         col = pow(col, 1.0/_Gamma);
         col = ACES(col);
         col = min(col, _HighlightClamp.xxx);
-        col /= _HighlightClamp;
 
         return float4(col,1);
       }
