@@ -1,0 +1,182 @@
+// Assets/Lenia/Flow/FlowLenia.compute
+// Unity 2021+  (DX11/12, SM5.0+)
+
+#pragma kernel Affinity
+#pragma kernel AdvectScatter
+#pragma kernel Collect
+
+// ---- Shared params ----
+cbuffer Params {
+    int   _Width;
+    int   _Height;
+    int   _Channels;         // 1..3 (RGB channels used)
+    int   _KernelSize;       // (2*R+1)
+
+    float _GrowthMu;         // Lenia growth μ
+    float _GrowthSigma;      // Lenia growth σ
+    float _Dt;               // step size, e.g. 0.8
+    float _FlowScale;        // scales flow vector, e.g. 1.0
+
+    float _MassToFix;        // e.g. 1000000.0 (1e6) fixed-point scale
+    float _M0;               // mass weight lower (smoothstep)
+    float _M1;               // mass weight upper
+    float _Pad0;
+
+    int   _HalfK;            // R
+    int   _Stride;           // (_Width * _Channels)
+    int   _PadI0;
+    int   _PadI1;
+};
+
+// State textures (RGB used for up to 3 channels)
+Texture2D<float4>        _StateRead;
+RWTexture2D<float4>      _Affinity;    // affinity per channel
+// Final write
+RWTexture2D<float4>      _StateWrite;
+
+// Fixed-point scatter accumulator: length = _Width*_Height*_Channels
+RWStructuredBuffer<uint> _Accum;
+
+// Spatial kernel (single 2D kernel used across channels here; extend as needed)
+StructuredBuffer<float>  _Kernel; // length _KernelSize*_KernelSize
+
+// Helpers
+int2 Wrap(int2 p) {
+    p.x = clamp(p.x, 0, _Width-1);
+    p.y = clamp(p.y, 0, _Height-1);
+    return p;
+}
+float3 SampleState(int2 p) {
+    float4 v = _StateRead[Wrap(p)];
+    return v.rgb;
+}
+float3 SampleAffinity(int2 p) {
+    float4 v = _Affinity[Wrap(p)];
+    return v.rgb;
+}
+float Growth(float x, float mu, float sigma) {
+    // Bell-shaped, maps to ~[-1, +1]
+    float g = exp(-0.5 * ( (x - mu)*(x - mu) ) / (sigma*sigma));
+    return g * 2.0 - 1.0;
+}
+float2 Grad2(float vL, float vR, float vD, float vU) {
+    return 0.5 * float2(vR - vL, vU - vD);
+}
+[numthreads(8,8,1)]
+void Affinity (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Width || id.y >= _Height) return;
+    int2 p = int2(id.xy);
+
+    // Convolution (same kernel for each channel)
+    float3 conv = 0.0.xxx;
+    int idx = 0;
+    for (int j = -_HalfK; j <= _HalfK; ++j) {
+        for (int i = -_HalfK; i <= _HalfK; ++i) {
+            float w = _Kernel[idx++];
+            float3 s = SampleState(p + int2(i,j));
+            conv += w * s;
+        }
+    }
+
+    // Lenia growth → affinity (per channel)
+    float3 A;
+    A.r = Growth(conv.r, _GrowthMu, _GrowthSigma);
+    A.g = (_Channels > 1) ? Growth(conv.g, _GrowthMu, _GrowthSigma) : 0.0;
+    A.b = (_Channels > 2) ? Growth(conv.b, _GrowthMu, _GrowthSigma) : 0.0;
+
+    _Affinity[p] = float4(A, 0);
+}
+
+[numthreads(8,8,1)]
+void AdvectScatter (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Width || id.y >= _Height) return;
+    int2 p = int2(id.xy);
+
+    float3 Uc = SampleState(p);
+    float  m  = Uc.r + ((_Channels>1)?Uc.g:0) + ((_Channels>2)?Uc.b:0);
+    float  M  = smoothstep(_M0, _M1, m);   // weight: near critical mass → diffusion dominates
+
+    // Finite-diff grads (affinity & concentration) for each channel
+    int2 L = p + int2(-1, 0), R = p + int2(1, 0);
+    int2 D = p + int2(0, -1), U = p + int2(0, 1);
+
+    float3 A_L = SampleAffinity(L), A_R = SampleAffinity(R);
+    float3 A_D = SampleAffinity(D), A_U = SampleAffinity(U);
+    float3 U_L = SampleState(L),    U_R = SampleState(R);
+    float3 U_D = SampleState(D),    U_U = SampleState(U);
+
+    float2 gA_r = Grad2(A_L.r, A_R.r, A_D.r, A_U.r);
+    float2 gA_g = Grad2(A_L.g, A_R.g, A_D.g, A_U.g);
+    float2 gA_b = Grad2(A_L.b, A_R.b, A_D.b, A_U.b);
+
+    float2 gU_r = Grad2(U_L.r, U_R.r, U_D.r, U_U.r);
+    float2 gU_g = Grad2(U_L.g, U_R.g, U_D.g, U_U.g);
+    float2 gU_b = Grad2(U_L.b, U_R.b, U_D.b, U_U.b);
+
+    // Flow per channel (paper: combine ∇affinity and −∇concentration, weighted by total mass map)
+    float2 F_r = _FlowScale * ((1.0 - M) * gA_r - M * gU_r);
+    float2 F_g = _FlowScale * ((1.0 - M) * gA_g - M * gU_g);
+    float2 F_b = _FlowScale * ((1.0 - M) * gA_b - M * gU_b);
+
+    // Scatter: bilinear weights to 4 neighbors at target = p + dt * F
+    int baseIdx = (p.y * _Width + p.x) * _Channels;
+
+    // Per-channel helper (templated by copy/paste)
+    [unroll] for (int c = 0; c < 3; ++c) {
+        if (c >= _Channels) break;
+        float mass = (c==0?Uc.r:(c==1?Uc.g:Uc.b));
+        if (mass <= 0) continue;
+
+        float2 F = (c==0?F_r:(c==1?F_g:F_b));
+        float2 t = (float2)p + _Dt * F;
+
+        // Clamp target inside grid
+        t = clamp(t, 0.0.xx, (float2)(_Width-1, _Height-1));
+        int2 i0 = int2(floor(t));
+        int2 i1 = i0 + int2(1,0);
+        int2 j1 = i0 + int2(0,1);
+        int2 i1j1 = i0 + int2(1,1);
+
+        float2 frac = t - (float2)i0;
+        float w00 = (1.0 - frac.x) * (1.0 - frac.y);
+        float w10 = (frac.x)       * (1.0 - frac.y);
+        float w01 = (1.0 - frac.x) * (frac.y);
+        float w11 = (frac.x)       * (frac.y);
+
+        uint add00 = (uint)round(mass * w00 * _MassToFix);
+        uint add10 = (uint)round(mass * w10 * _MassToFix);
+        uint add01 = (uint)round(mass * w01 * _MassToFix);
+        uint add11 = (uint)round(mass * w11 * _MassToFix);
+
+        int idx00 = ((clamp(i0.y,0,_Height-1)*_Width + clamp(i0.x,0,_Width-1))*_Channels) + c;
+        int idx10 = ((clamp(i1.y,0,_Height-1)*_Width + clamp(i1.x,0,_Width-1))*_Channels) + c;
+        int idx01 = ((clamp(j1.y,0,_Height-1)*_Width + clamp(j1.x,0,_Width-1))*_Channels) + c;
+        int idx11 = ((clamp(i1j1.y,0,_Height-1)*_Width + clamp(i1j1.x,0,_Width-1))*_Channels) + c;
+
+        InterlockedAdd(_Accum[idx00], add00);
+        InterlockedAdd(_Accum[idx10], add10);
+        InterlockedAdd(_Accum[idx01], add01);
+        InterlockedAdd(_Accum[idx11], add11);
+    }
+}
+
+[numthreads(8,8,1)]
+void Collect (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Width || id.y >= _Height) return;
+    int2 p = int2(id.xy);
+
+    float invFix = 1.0 / _MassToFix;
+    float3 outv = 0;
+
+    int base = (p.y * _Width + p.x) * _Channels;
+    uint v0 = _Accum[base+0]; _Accum[base+0] = 0;
+    outv.r = (float)v0 * invFix;
+
+    if (_Channels > 1) { uint v1 = _Accum[base+1]; _Accum[base+1] = 0; outv.g = (float)v1 * invFix; }
+    if (_Channels > 2) { uint v2 = _Accum[base+2]; _Accum[base+2] = 0; outv.b = (float)v2 * invFix; }
+
+    _StateWrite[p] = float4(outv, 0);
+}
