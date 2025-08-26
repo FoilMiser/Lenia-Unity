@@ -74,8 +74,8 @@ public class FlowLeniaSimulation : MonoBehaviour
     {
         if (stateA == null || stateB == null) MakeRT(ref stateA); // ensure exists
         if (stateB == null) MakeRT(ref stateB);
-        ClearRT(stateA, Color.clear);
-        ClearRT(stateB, Color.clear);
+        ClearRT(stateA, new Color(0,0,0,1));
+        ClearRT(stateB, new Color(0,0,0,1));
         SeedCenterBlob();
     }
 
@@ -267,3 +267,4 @@ public class FlowLeniaSimulation : MonoBehaviour
         (stateA, stateB) = (stateB, stateA);
     }
 }
+
