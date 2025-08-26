@@ -6,6 +6,7 @@ public class ForceBindSimToDisplay : MonoBehaviour
 {
     public FlowLeniaSimulation sim;
     public RawImage target;
+    public bool logEverySecond = false;
 
     float tLog;
 
@@ -19,11 +20,9 @@ public class ForceBindSimToDisplay : MonoBehaviour
         var rt = sim.CurrentTexture;
         if (rt != null && target.texture != rt) target.texture = rt;
 
-        // status log once per second
-        tLog += Time.unscaledDeltaTime;
-        if (tLog > 1f){
-            Debug.Log("[Binder] sim RT = " + (rt ? (rt.width + "x" + rt.height) : "null"));
-            tLog = 0f;
+        if (logEverySecond){
+            tLog += Time.unscaledDeltaTime;
+            if (tLog > 1f){ Debug.Log("[Binder] sim RT = " + (rt ? (rt.width + "x" + rt.height) : "null")); tLog = 0f; }
         }
     }
 }
