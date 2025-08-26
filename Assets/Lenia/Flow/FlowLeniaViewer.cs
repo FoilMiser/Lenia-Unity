@@ -9,7 +9,7 @@ public class FlowLeniaViewer : MonoBehaviour
     public bool showTestCardIfNull = true;
 
     Texture2D _testCard;
-    bool _loggedBound, _loggedNull;
+    bool _loggedNull;
 
     void Awake()      { TryBind(); }
     void OnEnable()   { TryBind(); }
@@ -18,7 +18,7 @@ public class FlowLeniaViewer : MonoBehaviour
     void TryBind()
     {
         if (target == null) target = GetComponent<RawImage>();
-        if (sim == null)    sim    = Object.FindFirstObjectByType<FlowLeniaSimulation>();
+        if (sim == null)    sim    = Object.FindObjectOfType<FlowLeniaSimulation>();
     }
 
     void EnsureTestCard()
@@ -47,13 +47,12 @@ public class FlowLeniaViewer : MonoBehaviour
         if (tex != null)
         {
             target.texture = tex;
-            if (!_loggedBound) { Debug.Log("[Viewer] Bound sim RT " + tex.width + "x" + tex.height); _loggedBound = true; }
         }
         else if (showTestCardIfNull)
         {
             EnsureTestCard();
             target.texture = _testCard;
-            if (!_loggedNull) { Debug.LogWarning("[Viewer] Sim RT was null. Showing test card."); _loggedNull = true; }
+            if (!_loggedNull) { Debug.LogWarning("[Viewer] sim.CurrentTexture is NULL (showing checker)."); _loggedNull = true; }
         }
     }
 
