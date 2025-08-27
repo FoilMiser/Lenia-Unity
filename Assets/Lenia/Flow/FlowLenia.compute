@@ -1,182 +1,225 @@
 ﻿// Assets/Lenia/Flow/FlowLenia.compute
-// Unity 2021+  (DX11/12, SM5.0+)
+// Flow-Lenia (Unity 6.2 DX11 safe):
+// - No loops over runtime values
+// - Texture/RWTexture gradient helpers
+// - Fixed 1..3 channel guards
+// - Alpha forced to 1.0 for UI
 
 #pragma kernel Affinity
+#pragma kernel ClearAccum
 #pragma kernel AdvectScatter
 #pragma kernel Collect
 
-// ---- Shared params ----
 cbuffer Params {
-    int   _Width;
-    int   _Height;
-    int   _Channels;         // 1..3 (RGB channels used)
-    int   _KernelSize;       // (2*R+1)
-
-    float _GrowthMu;         // Lenia growth Î¼
-    float _GrowthSigma;      // Lenia growth Ïƒ
-    float _Dt;               // step size, e.g. 0.8
-    float _FlowScale;        // scales flow vector, e.g. 1.0
-
-    float _MassToFix;        // e.g. 1000000.0 (1e6) fixed-point scale
-    float _M0;               // mass weight lower (smoothstep)
-    float _M1;               // mass weight upper
-    float _Pad0;
-
-    int   _HalfK;            // R
-    int   _Stride;           // (_Width * _Channels)
-    int   _PadI0;
-    int   _PadI1;
-};
-
-// State textures (RGB used for up to 3 channels)
-Texture2D<float4>        _StateRead;
-RWTexture2D<float4>      _Affinity;    // affinity per channel
-// Final write
-RWTexture2D<float4>      _StateWrite;
-
-// Fixed-point scatter accumulator: length = _Width*_Height*_Channels
-RWStructuredBuffer<uint> _Accum;
-
-// Spatial kernel (single 2D kernel used across channels here; extend as needed)
-StructuredBuffer<float>  _Kernel; // length _KernelSize*_KernelSize
-
-// Helpers
-int2 Wrap(int2 p) {
-    p.x = clamp(p.x, 0, _Width-1);
-    p.y = clamp(p.y, 0, _Height-1);
-    return p;
+    int   _Width, _Height, _Channels, _KernelSize;    // Kernel size not used in this DX11-safe variant
+    float _Dt, _FlowScale, _Temperature;
+    float _Mcrit, _Kappa;
+    float _FixedScale;
+    float _GrowthMu, _GrowthSigma;
+    float _ReactionGain;
 }
-float3 SampleState(int2 p) {
-    float4 v = _StateRead[Wrap(p)];
-    return v.rgb;
-}
-float3 SampleAffinity(int2 p) {
-    float4 v = _Affinity[Wrap(p)];
-    return v.rgb;
-}
-float Growth(float x, float mu, float sigma) {
-    // Bell-shaped, maps to ~[-1, +1]
-    float g = exp(-0.5 * ( (x - mu)*(x - mu) ) / (sigma*sigma));
-    return g * 2.0 - 1.0;
-}
-float2 Grad2(float vL, float vR, float vD, float vU) {
-    return 0.5 * float2(vR - vL, vU - vD);
-}
-[numthreads(8,8,1)]
+
+Texture2D<float4>        _State;      // RGB = channels, A ignored
+RWTexture2D<float4>      _Affinity;   // write g→RGB, A=1 (also read in AdvectScatter)
+RWTexture2D<float4>      _Next;       // next state, A=1
+RWStructuredBuffer<uint> _Accum;      // W*H*_Channels (fixed-point)
+StructuredBuffer<float>  _Kernel;     // kept for binding parity (unused here)
+
+int2 ClampToDim(int2 v) { return int2(clamp(v.x,0,_Width-1), clamp(v.y,0,_Height-1)); }
+
+#define TG 16
+
+// ---------------- Affinity (3x3 Gaussian blur of MASS + Lenia growth) ----------------
+[numthreads(TG, TG, 1)]
 void Affinity (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= _Width || id.y >= _Height) return;
     int2 p = int2(id.xy);
 
-    // Convolution (same kernel for each channel)
-    float3 conv = 0.0.xxx;
-    int idx = 0;
-    for (int j = -_HalfK; j <= _HalfK; ++j) {
-        for (int i = -_HalfK; i <= _HalfK; ++i) {
-            float w = _Kernel[idx++];
-            float3 s = SampleState(p + int2(i,j));
-            conv += w * s;
-        }
-    }
+    // MASS at 9 taps
+    float m00 = dot(_State.Load(int3(ClampToDim(p+int2(-1,-1)),0)).rgb, float3(1,1,1));
+    float m10 = dot(_State.Load(int3(ClampToDim(p+int2( 0,-1)),0)).rgb, float3(1,1,1));
+    float m20 = dot(_State.Load(int3(ClampToDim(p+int2( 1,-1)),0)).rgb, float3(1,1,1));
 
-    // Lenia growth â†’ affinity (per channel)
-    float3 A;
-    A.r = Growth(conv.r, _GrowthMu, _GrowthSigma);
-    A.g = (_Channels > 1) ? Growth(conv.g, _GrowthMu, _GrowthSigma) : 0.0;
-    A.b = (_Channels > 2) ? Growth(conv.b, _GrowthMu, _GrowthSigma) : 0.0;
+    float m01 = dot(_State.Load(int3(ClampToDim(p+int2(-1, 0)),0)).rgb, float3(1,1,1));
+    float m11 = dot(_State.Load(int3(ClampToDim(p+int2( 0, 0)),0)).rgb, float3(1,1,1));
+    float m21 = dot(_State.Load(int3(ClampToDim(p+int2( 1, 0)),0)).rgb, float3(1,1,1));
 
-    _Affinity[p] = float4(A, 1.0);
+    float m02 = dot(_State.Load(int3(ClampToDim(p+int2(-1, 1)),0)).rgb, float3(1,1,1));
+    float m12 = dot(_State.Load(int3(ClampToDim(p+int2( 0, 1)),0)).rgb, float3(1,1,1));
+    float m22 = dot(_State.Load(int3(ClampToDim(p+int2( 1, 1)),0)).rgb, float3(1,1,1));
+
+    // 3x3 gaussian blur (weights /16)
+    float convMass =
+        (1*m00 + 2*m10 + 1*m20 +
+         2*m01 + 4*m11 + 2*m21 +
+         1*m02 + 2*m12 + 1*m22) * (1.0/16.0);
+
+    // Lenia growth on approx-normalized mass
+    float denom = (float)max(1, _Channels);
+    float u = convMass / denom;
+    float sigma = max(_GrowthSigma, 1e-6);
+    float t = (u - _GrowthMu) / sigma;
+    float g = 2.0 * exp(-0.5 * t * t) - 1.0;
+
+    _Affinity[p] = float4(g, g, g, 1.0);
 }
 
-[numthreads(8,8,1)]
+// ---------------- ClearAccum ----------------
+[numthreads(TG, TG, 1)]
+void ClearAccum (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Width || id.y >= _Height) return;
+    uint baseIndex = (uint(id.y) * (uint)_Width + uint(id.x)) * (uint)_Channels;
+    if (_Channels > 0) _Accum[baseIndex + 0u] = 0u;
+    if (_Channels > 1) _Accum[baseIndex + 1u] = 0u;
+    if (_Channels > 2) _Accum[baseIndex + 2u] = 0u;
+}
+
+// ---------------- Gradient helpers ----------------
+float2 GradChannelTex(Texture2D<float4> tex, int2 p, int chan)
+{
+    int2 px = ClampToDim(p + int2( 1, 0));
+    int2 nx = ClampToDim(p + int2(-1, 0));
+    int2 py = ClampToDim(p + int2( 0, 1));
+    int2 ny = ClampToDim(p + int2( 0,-1));
+
+    float4 vxp = tex.Load(int3(px,0));
+    float4 vxn = tex.Load(int3(nx,0));
+    float4 vyp = tex.Load(int3(py,0));
+    float4 vyn = tex.Load(int3(ny,0));
+
+    float sx = (chan==0? vxp.x : (chan==1? vxp.y : vxp.z)) - (chan==0? vxn.x : (chan==1? vxn.y : vxn.z));
+    float sy = (chan==0? vyp.x : (chan==1? vyp.y : vyp.z)) - (chan==0? vyn.x : (chan==1? vyn.y : vyn.z));
+    return 0.5 * float2(sx, sy);
+}
+
+float2 GradChannelRW(RWTexture2D<float4> tex, int2 p, int chan)
+{
+    int2 px = ClampToDim(p + int2( 1, 0));
+    int2 nx = ClampToDim(p + int2(-1, 0));
+    int2 py = ClampToDim(p + int2( 0, 1));
+    int2 ny = ClampToDim(p + int2( 0,-1));
+
+    float4 vxp = tex[px];
+    float4 vxn = tex[nx];
+    float4 vyp = tex[py];
+    float4 vyn = tex[ny];
+
+    float sx = (chan==0? vxp.x : (chan==1? vxp.y : vxp.z)) - (chan==0? vxn.x : (chan==1? vxn.y : vxn.z));
+    float sy = (chan==0? vyp.x : (chan==1? vyp.y : vyp.z)) - (chan==0? vyn.x : (chan==1? vyn.y : vyn.z));
+    return 0.5 * float2(sx, sy);
+}
+
+// mass gradient from _State
+float2 GradMass(Texture2D<float4> tex, int2 p)
+{
+    int2 px = ClampToDim(p + int2( 1, 0));
+    int2 nx = ClampToDim(p + int2(-1, 0));
+    int2 py = ClampToDim(p + int2( 0, 1));
+    int2 ny = ClampToDim(p + int2( 0,-1));
+
+    float3 vxp = tex.Load(int3(px,0)).rgb;
+    float3 vxn = tex.Load(int3(nx,0)).rgb;
+    float3 vyp = tex.Load(int3(py,0)).rgb;
+    float3 vyn = tex.Load(int3(ny,0)).rgb;
+
+    float sx = (vxp.x+vxp.y+vxp.z) - (vxn.x+vxn.y+vxn.z);
+    float sy = (vyp.x+vyp.y+vyp.z) - (vyn.x+vyn.y+vyn.z);
+    return 0.5 * float2(sx, sy);
+}
+
+float WeightAffinity(float mass) { return 1.0 / (1.0 + exp(+_Kappa * (mass - _Mcrit))); }
+
+// ---------------- AdvectScatter ----------------
+[numthreads(TG, TG, 1)]
 void AdvectScatter (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= _Width || id.y >= _Height) return;
     int2 p = int2(id.xy);
 
-    float3 Uc = SampleState(p);
-    float  m  = Uc.r + ((_Channels>1)?Uc.g:0) + ((_Channels>2)?Uc.b:0);
-    float  M  = smoothstep(_M0, _M1, m);   // weight: near critical mass â†’ diffusion dominates
+    float3 conc = _State.Load(int3(p,0)).rgb;
+    float  mass = conc.x + conc.y + conc.z;
 
-    // Finite-diff grads (affinity & concentration) for each channel
-    int2 L = p + int2(-1, 0), R = p + int2(1, 0);
-    int2 D = p + int2(0, -1), U = p + int2(0, 1);
+    float2 gradAff  = GradChannelRW(_Affinity, p, 0); // NOTE: RWTexture variant
+    float2 gradMass = GradMass(_State,   p);
 
-    float3 A_L = SampleAffinity(L), A_R = SampleAffinity(R);
-    float3 A_D = SampleAffinity(D), A_U = SampleAffinity(U);
-    float3 U_L = SampleState(L),    U_R = SampleState(R);
-    float3 U_D = SampleState(D),    U_U = SampleState(U);
+    float  w = WeightAffinity(mass);
+    float2 F = (w * gradAff - (1.0 - w) * gradMass);
+    float2 delta = _Dt * _FlowScale * _Temperature * F;
 
-    float2 gA_r = Grad2(A_L.r, A_R.r, A_D.r, A_U.r);
-    float2 gA_g = Grad2(A_L.g, A_R.g, A_D.g, A_U.g);
-    float2 gA_b = Grad2(A_L.b, A_R.b, A_D.b, A_U.b);
+    float2 tgt = float2(p) + delta;
+    float2 ft0 = floor(tgt);
+    int2  t0   = int2(ft0);
+    float2 f   = saturate(tgt - ft0);
 
-    float2 gU_r = Grad2(U_L.r, U_R.r, U_D.r, U_U.r);
-    float2 gU_g = Grad2(U_L.g, U_R.g, U_D.g, U_U.g);
-    float2 gU_b = Grad2(U_L.b, U_R.b, U_D.b, U_U.b);
+    int2 q00 = ClampToDim(t0);
+    int2 q10 = ClampToDim(t0 + int2(1,0));
+    int2 q01 = ClampToDim(t0 + int2(0,1));
+    int2 q11 = ClampToDim(t0 + int2(1,1));
 
-    // Flow per channel (paper: combine âˆ‡affinity and âˆ’âˆ‡concentration, weighted by total mass map)
-    float2 F_r = _FlowScale * ((1.0 - M) * gA_r - M * gU_r);
-    float2 F_g = _FlowScale * ((1.0 - M) * gA_g - M * gU_g);
-    float2 F_b = _FlowScale * ((1.0 - M) * gA_b - M * gU_b);
+    float w00 = (1.0 - f.x) * (1.0 - f.y);
+    float w10 = (       f.x) * (1.0 - f.y);
+    float w01 = (1.0 - f.x) * (       f.y);
+    float w11 = (       f.x) * (       f.y);
 
-    // Scatter: bilinear weights to 4 neighbors at target = p + dt * F
-    int baseIdx = (p.y * _Width + p.x) * _Channels;
+    uint base00 = (uint(q00.y) * (uint)_Width + uint(q00.x)) * (uint)_Channels;
+    uint base10 = (uint(q10.y) * (uint)_Width + uint(q10.x)) * (uint)_Channels;
+    uint base01 = (uint(q01.y) * (uint)_Width + uint(q01.x)) * (uint)_Channels;
+    uint base11 = (uint(q11.y) * (uint)_Width + uint(q11.x)) * (uint)_Channels;
 
-    // Per-channel helper (templated by copy/paste)
-    [unroll] for (int c = 0; c < 3; ++c) {
-        if (c >= _Channels) break;
-        float mass = (c==0?Uc.r:(c==1?Uc.g:Uc.b));
-        if (mass <= 0) continue;
-
-        float2 F = (c==0?F_r:(c==1?F_g:F_b));
-        float2 t = (float2)p + _Dt * F;
-
-        // Clamp target inside grid
-        t = clamp(t, 0.0.xx, (float2)(_Width-1, _Height-1));
-        int2 i0 = int2(floor(t));
-        int2 i1 = i0 + int2(1,0);
-        int2 j1 = i0 + int2(0,1);
-        int2 i1j1 = i0 + int2(1,1);
-
-        float2 frac = t - (float2)i0;
-        float w00 = (1.0 - frac.x) * (1.0 - frac.y);
-        float w10 = (frac.x)       * (1.0 - frac.y);
-        float w01 = (1.0 - frac.x) * (frac.y);
-        float w11 = (frac.x)       * (frac.y);
-
-        uint add00 = (uint)round(mass * w00 * _MassToFix);
-        uint add10 = (uint)round(mass * w10 * _MassToFix);
-        uint add01 = (uint)round(mass * w01 * _MassToFix);
-        uint add11 = (uint)round(mass * w11 * _MassToFix);
-
-        int idx00 = ((clamp(i0.y,0,_Height-1)*_Width + clamp(i0.x,0,_Width-1))*_Channels) + c;
-        int idx10 = ((clamp(i1.y,0,_Height-1)*_Width + clamp(i1.x,0,_Width-1))*_Channels) + c;
-        int idx01 = ((clamp(j1.y,0,_Height-1)*_Width + clamp(j1.x,0,_Width-1))*_Channels) + c;
-        int idx11 = ((clamp(i1j1.y,0,_Height-1)*_Width + clamp(i1j1.x,0,_Width-1))*_Channels) + c;
-
-        InterlockedAdd(_Accum[idx00], add00);
-        InterlockedAdd(_Accum[idx10], add10);
-        InterlockedAdd(_Accum[idx01], add01);
-        InterlockedAdd(_Accum[idx11], add11);
+    if (_Channels > 0) {
+        float m = max(0.0, conc.x);
+        uint a00 = (uint)round(m * w00 * _FixedScale);
+        uint a10 = (uint)round(m * w10 * _FixedScale);
+        uint a01 = (uint)round(m * w01 * _FixedScale);
+        uint a11 = (uint)round(m * w11 * _FixedScale);
+        InterlockedAdd(_Accum[base00 + 0u], a00);
+        InterlockedAdd(_Accum[base10 + 0u], a10);
+        InterlockedAdd(_Accum[base01 + 0u], a01);
+        InterlockedAdd(_Accum[base11 + 0u], a11);
+    }
+    if (_Channels > 1) {
+        float m = max(0.0, conc.y);
+        uint a00 = (uint)round(m * w00 * _FixedScale);
+        uint a10 = (uint)round(m * w10 * _FixedScale);
+        uint a01 = (uint)round(m * w01 * _FixedScale);
+        uint a11 = (uint)round(m * w11 * _FixedScale);
+        InterlockedAdd(_Accum[base00 + 1u], a00);
+        InterlockedAdd(_Accum[base10 + 1u], a10);
+        InterlockedAdd(_Accum[base01 + 1u], a01);
+        InterlockedAdd(_Accum[base11 + 1u], a11);
+    }
+    if (_Channels > 2) {
+        float m = max(0.0, conc.z);
+        uint a00 = (uint)round(m * w00 * _FixedScale);
+        uint a10 = (uint)round(m * w10 * _FixedScale);
+        uint a01 = (uint)round(m * w01 * _FixedScale);
+        uint a11 = (uint)round(m * w11 * _FixedScale);
+        InterlockedAdd(_Accum[base00 + 2u], a00);
+        InterlockedAdd(_Accum[base10 + 2u], a10);
+        InterlockedAdd(_Accum[base01 + 2u], a01);
+        InterlockedAdd(_Accum[base11 + 2u], a11);
     }
 }
 
-[numthreads(8,8,1)]
+// ---------------- Collect ----------------
+[numthreads(TG, TG, 1)]
 void Collect (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= _Width || id.y >= _Height) return;
     int2 p = int2(id.xy);
+    uint baseIndex = (uint(p.y) * (uint)_Width + uint(p.x)) * (uint)_Channels;
 
-    float invFix = 1.0 / _MassToFix;
     float3 outv = 0;
-    uint baseIndex = (uint)((p.y * _Width + p.x) * _Channels);
-    uint v0 = _Accum[baseIndex+0]; _Accum[baseIndex+0] = 0;
-    outv.r = (float)v0 * invFix;
 
-    if (_Channels > 1) { uint v1 = _Accum[baseIndex+1]; _Accum[baseIndex+1] = 0; outv.g = (float)v1 * invFix; }
-    if (_Channels > 2) { uint v2 = _Accum[baseIndex+2]; _Accum[baseIndex+2] = 0; outv.b = (float)v2 * invFix; }
+    if (_Channels > 0) { uint r0 = _Accum[baseIndex + 0u]; outv.x = max(0.0, (float)r0 / _FixedScale); _Accum[baseIndex + 0u] = 0u; }
+    if (_Channels > 1) { uint r1 = _Accum[baseIndex + 1u]; outv.y = max(0.0, (float)r1 / _FixedScale); _Accum[baseIndex + 1u] = 0u; }
+    if (_Channels > 2) { uint r2 = _Accum[baseIndex + 2u]; outv.z = max(0.0, (float)r2 / _FixedScale); _Accum[baseIndex + 2u] = 0u; }
 
-    _StateWrite[p] = float4(outv, 1.0);
+    // Reaction from Affinity (scalar g); integrate and clamp
+    float g = _Affinity[p].x;
+    outv = saturate(outv + _Dt * _ReactionGain * g);
+
+    _Next[p] = float4(outv, 1.0);
 }
-
