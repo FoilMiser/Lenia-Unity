@@ -5,7 +5,7 @@ using UnityEngine.UI;
 using BM = global::BoundaryMode;
 
 #if ENABLE_INPUT_SYSTEM
-using UnityEngine.InputSystem;            // New Input System
+using UnityEngine.InputSystem; // New Input System
 #endif
 
 [DisallowMultipleComponent]
@@ -41,24 +41,24 @@ public class FlowLeniaControl : MonoBehaviour
     void Update()
     {
         if (!sim || !display) return;
-        if (!Application.isFocused) return; // ignore input if game view not focused
+        if (!Application.isFocused) return; // need Game view focus for input
 
         // ---- keys (new + old input supported) ----
-        bool key_pause    = GetKeyDown_Space();
-        bool key_step     = GetKeyDown_Period();
-        bool key_bndry    = GetKeyDown(KeyCode.B, Key.period);   // cycle boundary
-        bool key_massInfo = GetKeyDown(KeyCode.M, Key.m);
+        bool key_pause    = GetKeyDown(KeyCode.Space,   Key.Space);
+        bool key_step     = GetKeyDown(KeyCode.Period,  Key.Period);
+        bool key_bndry    = GetKeyDown(KeyCode.B,       Key.B);
+        bool key_massInfo = GetKeyDown(KeyCode.M,       Key.M);
 
-        bool key_dtDec    = GetKeyDown(KeyCode.Minus,  Key.minus);
-        bool key_dtInc    = GetKeyDown(KeyCode.Equals, Key.equals);
-        bool key_tempDec  = GetKeyDown(KeyCode.LeftBracket,  Key.leftBracket);
-        bool key_tempInc  = GetKeyDown(KeyCode.RightBracket, Key.rightBracket);
+        bool key_dtDec    = GetKeyDown(KeyCode.Minus,        Key.Minus);
+        bool key_dtInc    = GetKeyDown(KeyCode.Equals,       Key.Equals);
+        bool key_tempDec  = GetKeyDown(KeyCode.LeftBracket,  Key.LeftBracket);
+        bool key_tempInc  = GetKeyDown(KeyCode.RightBracket, Key.RightBracket);
 
-        bool key_seed1    = GetKeyDown(KeyCode.Alpha1, Key.digit1);
-        bool key_seed2    = GetKeyDown(KeyCode.Alpha2, Key.digit2);
-        bool key_seed3    = GetKeyDown(KeyCode.Alpha3, Key.digit3);
-        bool key_reseed   = GetKeyDown(KeyCode.R, Key.r);
-        bool key_home     = GetKeyDown(KeyCode.Home, Key.home);
+        bool key_seed1    = GetKeyDown(KeyCode.Alpha1, Key.Digit1);
+        bool key_seed2    = GetKeyDown(KeyCode.Alpha2, Key.Digit2);
+        bool key_seed3    = GetKeyDown(KeyCode.Alpha3, Key.Digit3);
+        bool key_reseed   = GetKeyDown(KeyCode.R,      Key.R);
+        bool key_home     = GetKeyDown(KeyCode.Home,   Key.Home);
 
         // Pause / Step
         if (key_pause) TogglePause();
@@ -105,9 +105,6 @@ public class FlowLeniaControl : MonoBehaviour
     }
 
     // ---- Input helpers ----
-    bool GetKeyDown_Space() => GetKeyDown(KeyCode.Space, Key.space);
-    bool GetKeyDown_Period()=> GetKeyDown(KeyCode.Period, Key.period);
-
     bool GetKeyDown(KeyCode legacy, Key modern)
     {
         #if ENABLE_INPUT_SYSTEM
@@ -147,8 +144,7 @@ public class FlowLeniaControl : MonoBehaviour
         #if ENABLE_INPUT_SYSTEM
         var m = Mouse.current;
         if (m == null) return 0f;
-        // Input System typically reports 120 per notch on Windows.
-        return (m.scroll.ReadValue().y) / 120f;
+        return m.scroll.ReadValue().y / 120f; // Windows: ~120 per notch
         #else
         return UnityEngine.Input.mouseScrollDelta.y;
         #endif
@@ -185,7 +181,6 @@ public class FlowLeniaControl : MonoBehaviour
             return;
         }
 
-        // Fallback: try to touch hidden ping-pong arrays
         var fA   = sim.GetType().GetField("_stateA", BindingFlags.Instance | BindingFlags.NonPublic);
         var fB   = sim.GetType().GetField("_stateB", BindingFlags.Instance | BindingFlags.NonPublic);
         var fPng = sim.GetType().GetField("_pong",   BindingFlags.Instance | BindingFlags.NonPublic);
