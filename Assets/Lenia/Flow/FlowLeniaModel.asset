@@ -20,11 +20,17 @@ MonoBehaviour:
   kernels:
   - c0: 0
     c1: 0
-    mu: 0.15
+    mu: 0.28
     sigma: 0.015
     h: 1
     rings:
-    - r: 3
-      w: 1
+    - r: 7
+      w: 2
       b:
+      - 0
+      - 0.15
+      - 0.55
       - 1
+      - 0.55
+      - 0.15
+      - 0
