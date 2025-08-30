@@ -2,17 +2,17 @@ Shader "Hidden/Lenia/PaletteBlit"
 {
     Properties
     {
-        _MainTex  ("Source", 2D)   = "black" {}
-        _LUT      ("Palette", 2D)  = "white" {}
-        _Exposure ("Exposure", Float) = 1.0
-        _Pan      ("Pan (UV)", Vector) = (0,0,0,0)
-        _Zoom     ("Zoom",    Float)  = 1.0
+        _MainTex   ("Input",   2D)   = "black" {}
+        _LUT       ("Palette", 2D)   = "white" {}
+        _Exposure  ("Exposure",Float)= 1
+        _Pan       ("Pan",     Vector)= (0,0,0,0) // float2 used
+        _Zoom      ("Zoom",    Float)= 1
     }
-
     SubShader
     {
-        Tags { "RenderType"="Opaque" "Queue"="Overlay" }
+        Tags { "Queue"="Overlay" "RenderType"="Opaque" }
         Cull Off ZWrite Off ZTest Always
+        Blend One Zero
 
         Pass
         {
@@ -23,48 +23,29 @@ Shader "Hidden/Lenia/PaletteBlit"
 
             sampler2D _MainTex;
             sampler2D _LUT;
-
-            float4 _MainTex_TexelSize;   // auto-provided by Unity
             float  _Exposure;
-            float4 _Pan;                 // xy used
+            float2 _Pan;
             float  _Zoom;
 
-            struct appdata
-            {
-                float4 vertex : POSITION;
-                float2 uv     : TEXCOORD0;
-            };
+            struct appdata { float4 vertex:POSITION; float2 uv:TEXCOORD0; };
+            struct v2f     { float4 pos:SV_POSITION; float2 uv:TEXCOORD0; };
 
-            struct v2f
-            {
-                float4 pos : SV_POSITION;
-                float2 uv  : TEXCOORD0;
-            };
-
-            v2f vert (appdata v)
-            {
-                v2f o;
-                o.pos = UnityObjectToClipPos(v.vertex);
-                o.uv  = v.uv;
-                return o;
+            v2f vert(appdata v) {
+                v2f o; o.pos = UnityObjectToClipPos(v.vertex); o.uv = v.uv; return o;
             }
 
-            fixed4 frag (v2f i) : SV_Target
+            fixed4 frag(v2f i) : SV_Target
             {
-                // Pan/zoom in UV space.
-                // zoom>1 = zoom in; zoom<1 = zoom out.
-                float z = max(_Zoom, 0.05);
-                float2 uv = (i.uv - 0.5) / z + 0.5 + _Pan.xy;
+                // Apply pan/zoom in UV space
+                float z  = max(_Zoom, 0.0001);
+                float2 uv = (i.uv - 0.5) / z + 0.5 + _Pan;
 
-                // Sample scalar field and map with LUT.
-                float v = saturate(tex2D(_MainTex, uv).r);
-                fixed4 col = tex2D(_LUT, float2(v, 0.5));
-
-                col.rgb *= _Exposure;
-                col.a = 1.0;
-                return col;
+                float v = tex2D(_MainTex, uv).r;
+                v = saturate(v * _Exposure);
+                return tex2D(_LUT, float2(v, 0.5));
             }
             ENDHLSL
         }
     }
+    Fallback Off
 }
