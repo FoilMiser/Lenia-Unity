@@ -13,4 +13,68 @@ MonoBehaviour:
   m_Name: FlowLeniaPresetLibrary
   m_EditorClassIdentifier: Assembly-CSharp::FlowLeniaPresetLibrary
   presets:
-  - {fileID: 11400000, guid: 6678d44314d60314aa5193af9eb45db3, type: 2}
+  - id: O2u
+    title: Orbium unicaudatus
+    R: 13
+    mu: 0.15
+    sigma: 0.015
+    h: 1
+    dt: 0.45
+    alpha: 1
+    beta: 0.25
+    temperature: 0.9
+    maxSpeed: 1
+    boundary: 1
+    scatter: 1
+  - id: O2ui
+    title: Orbium unicaudatus ignis
+    R: 13
+    mu: 0.11
+    sigma: 0.012
+    h: 1
+    dt: 0.45
+    alpha: 1
+    beta: 0.25
+    temperature: 0.9
+    maxSpeed: 1
+    boundary: 1
+    scatter: 1
+  - id: O2b
+    title: Orbium bicaudatus
+    R: 13
+    mu: 0.15
+    sigma: 0.014
+    h: 1
+    dt: 0.45
+    alpha: 1
+    beta: 0.25
+    temperature: 0.9
+    maxSpeed: 1
+    boundary: 1
+    scatter: 1
+  - id: O2bi
+    title: Orbium bicaudatus ignis
+    R: 13
+    mu: 0.1
+    sigma: 0.008
+    h: 1
+    dt: 0.45
+    alpha: 1
+    beta: 0.25
+    temperature: 0.9
+    maxSpeed: 1
+    boundary: 1
+    scatter: 1
+  - id: O2p
+    title: Orbium phantasma
+    R: 13
+    mu: 0.13
+    sigma: 0.009
+    h: 1
+    dt: 0.1125
+    alpha: 1
+    beta: 0.25
+    temperature: 0.9
+    maxSpeed: 1
+    boundary: 1
+    scatter: 1

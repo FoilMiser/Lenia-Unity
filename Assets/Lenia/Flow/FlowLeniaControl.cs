@@ -8,6 +8,7 @@ using BM = global::BoundaryMode;
 [RequireComponent(typeof(FlowLeniaDisplay))]
 public class FlowLeniaControl : MonoBehaviour
 {
+    [Header("References")]
     public FlowLeniaSimulation sim;
     public FlowLeniaDisplay    display;
 
@@ -17,14 +18,16 @@ public class FlowLeniaControl : MonoBehaviour
     [Min(0)] public int currentPresetIndex = 0;
 
     [Header("View Controls")]
+    [Tooltip("Pan speed in UV units per second at zoom = 1")]
     public float panSpeed = 0.6f;
+    [Tooltip("Per mouse-wheel notch (>1 zooms in)")]
     public float zoomStep = 1.12f;
     public float minZoom = 0.25f, maxZoom = 12f;
 
     [Header("Seeding (Starting Mass)")]
-    [Range(1, 32)]   public int   seedCount  = 3;
-    [Range(0.01f, .5f)] public float sigmaNorm = 0.08f; // fraction of min(width,height)
-    [Range(0f, 5f)]  public float startMass  = 1.0f;
+    [Range(1, 32)]     public int   seedCount  = 3;
+    [Range(0.01f, .5f)]public float sigmaNorm  = 0.08f; // fraction of min(width,height)
+    [Range(0f, 5f)]    public float startMass  = 1.0f;
     public bool centerFirst = true;
 
     float _savedDt = 1f;
@@ -38,19 +41,11 @@ public class FlowLeniaControl : MonoBehaviour
 
     void OnEnable()
     {
-        // Auto-apply initial preset if provided
+        // Auto-apply initial preset if available
         if (presetLibrary != null && presetLibrary.Count > 0)
         {
             currentPresetIndex = Mathf.Clamp(currentPresetIndex, 0, presetLibrary.Count - 1);
             ApplyPresetIndex(currentPresetIndex);
-        }
-    }
-
-    void OnValidate()
-    {
-        if (display)
-        {
-            display.zoom = Mathf.Clamp(display.zoom, Mathf.Max(0.05f, minZoom), Mathf.Max(minZoom, maxZoom));
         }
     }
 
@@ -60,17 +55,17 @@ public class FlowLeniaControl : MonoBehaviour
 
         var kb = Keyboard.current;
         var ms = Mouse.current;
-        if (kb == null) return;
+        if (kb == null) return; // Input System not ready
 
         // Pause / single-step
         if (kb.spaceKey.wasPressedThisFrame) TogglePause();
         if (_paused && kb.periodKey.wasPressedThisFrame) StepOnce();
 
-        // Preset cycling: , and .  ('.' steps when paused, cycles when running)
+        // Cycle presets: , / .
         if (kb.commaKey.wasPressedThisFrame) CyclePreset(-1);
-        if (!_paused && kb.periodKey.wasPressedThisFrame) CyclePreset(+1);
+        if (kb.periodKey.wasPressedThisFrame && !_paused) CyclePreset(+1);
 
-        // Direct preset: F1..F9
+        // Direct presets: F1..F9
         if (presetLibrary != null && presetLibrary.Count > 0)
         {
             if (kb.f1Key.wasPressedThisFrame) ApplyPresetIndex(0);
@@ -84,7 +79,7 @@ public class FlowLeniaControl : MonoBehaviour
             if (kb.f9Key.wasPressedThisFrame) ApplyPresetIndex(8);
         }
 
-        // Pan (WASD / arrows)
+        // Pan WASD / arrows
         Vector2 move = Vector2.zero;
         if (kb.aKey.isPressed || kb.leftArrowKey.isPressed)  move.x -= 1;
         if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) move.x += 1;
@@ -99,7 +94,8 @@ public class FlowLeniaControl : MonoBehaviour
         // Zoom (mouse wheel)
         if (ms != null)
         {
-            float scroll = ms.scroll.ReadValue().y;  // ~120 per notch on Windows
+            // Typically ~120 per notch on Windows
+            float scroll = ms.scroll.ReadValue().y;
             if (Mathf.Abs(scroll) > 0f)
             {
                 float steps = scroll / 120f;
@@ -139,18 +135,17 @@ public class FlowLeniaControl : MonoBehaviour
     void CyclePreset(int delta)
     {
         if (presetLibrary == null || presetLibrary.Count == 0) return;
-        int n = presetLibrary.Count;
-        currentPresetIndex = (currentPresetIndex + delta % n + n) % n;
+        currentPresetIndex = (currentPresetIndex + delta + presetLibrary.Count) % presetLibrary.Count;
         ApplyPresetIndex(currentPresetIndex);
     }
 
-    public void ApplyPresetIndex(int i)
+    void ApplyPresetIndex(int i)
     {
-        if (presetLibrary == null || presetLibrary.Count == 0) return;
-        i = Mathf.Clamp(i, 0, presetLibrary.Count - 1);
-        presetLibrary.ApplyPreset(i, sim, display);
+        if (presetLibrary == null || sim == null) return;
+        var clamped = Mathf.Clamp(i, 0, Mathf.Max(0, presetLibrary.Count - 1));
+        presetLibrary.ApplyPreset(clamped, sim);
         if (reseedOnPresetApply) Reseed();
-        currentPresetIndex = i;
+        currentPresetIndex = clamped;
     }
 
     void TogglePause()
@@ -174,17 +169,17 @@ public class FlowLeniaControl : MonoBehaviour
 
         float sigmaPx = Mathf.Max(1f, sigmaNorm * Mathf.Min(sim.width, sim.height));
 
-        // Prefer dedicated public helpers if present
+        // Prefer public helpers if they exist on your FlowLeniaSimulation
         var clear    = sim.GetType().GetMethod("ClearState", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         var seedBoth = sim.GetType().GetMethod("SeedBoth",   BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         if (clear != null && seedBoth != null)
         {
             clear.Invoke(sim, new object[] { 0f });
-            seedBoth.Invoke(sim, new object[] { seedCount, sigmaPx, startMass, centerFirst });
+            seedBoth.Invoke(sim, new object[] { seedCount, sigmaPx, startMass, true });
             return;
         }
 
-        // Fallback: seed the currently visible buffer only
+        // Fallback: seed currently visible buffer only
         var tex = sim.CurrentTexture(0);
         if (tex) SeedGaussian(tex, 0.5f, 0.5f, sigmaPx, startMass);
     }
@@ -209,13 +204,13 @@ public class FlowLeniaControl : MonoBehaviour
             for (int x = 0; x < rt.width; x++)
             {
                 float dx = x - cx;
-                data[row + x] = amp * Mathf.Exp(-(dx*dx + dy2) / twoSigma2);
+                data[row + x] = amp * Mathf.Exp(-(dx * dx + dy2) / twoSigma2);
             }
         }
 
         tex.LoadRawTextureData(data); tex.Apply(false);
         Graphics.Blit(tex, rt);
-        UnityEngine.Object.DestroyImmediate(tex);
+        Object.DestroyImmediate(tex);
         RenderTexture.active = tmp;
     }
 }
