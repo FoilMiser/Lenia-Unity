@@ -1,11 +1,102 @@
-﻿#pragma kernel ConvolveGrowUpdate
+﻿// Lenia.compute — multi-kernel (nk), up to 4 channels (float4), direct O(R^2) convolution.
+//
+// Math: A' = clip(A + dt * G( sum_k w_k * (K_k * (C * A)) ) )
+// Where C is a 4x4 coupling matrix mixing input channels per output.
+//
+// Based on Chan (2019, 2020): algorithm loop, kernel core/shell & growth mapping. 
+//   - Algorithm & multi-kernel/multi-channel: ALIFE 2020. 
+//   - KC/KS/G exact forms: Complex Systems 2019.
+// Citations: arXiv:2005.03742; arXiv:1812.05433.
+
+#pragma kernel ConvolveGrowUpdate
 
 RWTexture2D<float4> _Dst;
+Texture2D<float4>   _Src;
 
-[numthreads(8,8,1)]
+// (2Rmax+1)^2 per slice, slice = kernel index
+Texture2DArray<float> _KernelTex;
+
+// read-only buffers
+StructuredBuffer<float>  _KernelWeights;   // size = _NumKernels (already normalized)
+StructuredBuffer<float4> _CoupleRows;      // 4 rows, row c: mixes in from A.rgba
+
+SamplerState samplerPointClamp;
+
+cbuffer Params : register(b0)
+{
+    int   _Width;
+    int   _Height;
+    int   _RadiusMax;     // window radius
+    int   _KernelSize;    // = 2*Rmax+1
+    int   _NumKernels;
+    int   _Channels;      // 1..4
+    int   _Wrap;          // 0=clamp, 1=wrap
+    float _Dt;
+    float4 _Mu;           // per channel
+    float4 _Sigma;        // per channel
+};
+
+int2 wrapUV(int2 uv)
+{
+    if (_Wrap == 0) return clamp(uv, int2(0,0), int2(_Width-1,_Height-1));
+    int x = (uv.x % _Width  + _Width ) % _Width;
+    int y = (uv.y % _Height + _Height) % _Height;
+    return int2(x,y);
+}
+
+float4 growth(float4 m, float4 mu, float4 sigma)
+{
+    // Gaussian growth per channel: 2*exp(-0.5*((m-mu)/sigma)^2)-1
+    float4 d = (m - mu) / max(sigma, 1e-6);
+    return 2.0 * exp(-0.5 * d * d) - 1.0;
+}
+
+[numthreads(16,16,1)]
 void ConvolveGrowUpdate(uint3 id : SV_DispatchThreadID)
 {
-    // TODO: paste full Lenia.compute here
-    // Stub: write opaque black
-    _Dst[id.xy] = float4(0,0,0,1);
+    if (id.x >= _Width || id.y >= _Height) return;
+
+    // Gather A at neighbors and convolve with each kernel
+    float4 accum = 0.0;
+
+    for (int k = 0; k < _NumKernels; ++k)
+    {
+        float4 m = 0.0;
+
+        // Sum neighborhood with kernel slice k
+        for (int dy = -_RadiusMax; dy <= _RadiusMax; ++dy)
+        {
+            int ky = dy + _RadiusMax;
+            for (int dx = -_RadiusMax; dx <= _RadiusMax; ++dx)
+            {
+                int kx = dx + _RadiusMax;
+                float w = _KernelTex.Load(int4(kx, ky, k, 0)).r;
+                if (w == 0) continue;
+
+                int2 p = wrapUV(int2(id.xy) + int2(dx,dy));
+                float4 a = _Src.Load(int3(p,0));
+
+                // mix inputs -> per-output-channel using coupling rows
+                float4 mix;
+                mix.x = dot(_CoupleRows[0], a);
+                mix.y = (_Channels > 1) ? dot(_CoupleRows[1], a) : 0.0;
+                mix.z = (_Channels > 2) ? dot(_CoupleRows[2], a) : 0.0;
+                mix.w = (_Channels > 3) ? dot(_CoupleRows[3], a) : 0.0;
+
+                m += w * mix;
+            }
+        }
+
+        accum += _KernelWeights[k] * m;  // K is normalized; weights are normalized
+    }
+
+    // Growth and update
+    float4 a0 = _Src.Load(int3(id.xy,0));
+    float4 g  = growth(accum, _Mu, _Sigma);
+    float4 a1 = saturate(a0 + _Dt * g);
+
+    // keep only requested channels
+    if (_Channels < 4) { if (_Channels < 3) a1.z = 0; if (_Channels < 2) a1.y = 0; a1.w = 0; }
+
+    _Dst[id.xy] = a1;
 }
