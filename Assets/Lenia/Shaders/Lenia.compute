@@ -1,0 +1,11 @@
+﻿#pragma kernel ConvolveGrowUpdate
+
+RWTexture2D<float4> _Dst;
+
+[numthreads(8,8,1)]
+void ConvolveGrowUpdate(uint3 id : SV_DispatchThreadID)
+{
+    // TODO: paste full Lenia.compute here
+    // Stub: write opaque black
+    _Dst[id.xy] = float4(0,0,0,1);
+}
